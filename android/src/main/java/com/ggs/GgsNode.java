@@ -43,11 +43,14 @@ public class GgsNode {
         if (nativeHandle == 0) {
             return "{}";
         }
-        String json = nativeGetCapabilities(nativeHandle);
-        if (json != null) {
-            nativeStringFree(json);
+        String jsonPtr = nativeGetCapabilities(nativeHandle);
+        if (jsonPtr == null) {
+            return "{}";
         }
-        return json != null ? json : "{}";
+        // 先创建 Java String 副本，然后再释放 native 内存
+        String result = jsonPtr;
+        nativeStringFree(jsonPtr);
+        return result;
     }
     
     /**

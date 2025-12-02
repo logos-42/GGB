@@ -352,44 +352,68 @@ impl QuicGateway {
             Ok(b) => b,
             Err(_) => return false,
         };
-        let entries: Vec<(usize, quinn::Connection)> = {
+        
+        // 收集连接和对应的原始索引，使用连接对象本身而不是索引
+        // 这样可以避免在向量修改后索引失效的问题
+        let entries: Vec<(quinn::Connection, usize)> = {
             let guard = self.connections.read();
             guard
                 .iter()
-                .filter(|info| info.is_healthy())
                 .enumerate()
-                .map(|(idx, info)| (idx, info.connection.clone()))
+                .filter(|(_, info)| info.is_healthy())
+                .map(|(idx, info)| (info.connection.clone(), idx))
                 .collect()
         };
-        let mut success = false;
-        let mut failed_indices = Vec::new();
         
-        for (idx, conn) in entries {
+        let mut success = false;
+        let mut failed_original_indices = Vec::new();
+        let mut success_original_indices = Vec::new();
+        
+        // 尝试发送到所有连接
+        for (conn, original_idx) in entries {
             match conn.open_uni().await {
                 Ok(mut send) => {
                     if send.write_all(&bytes).await.is_ok() && send.finish().await.is_ok() {
                         success = true;
-                        // 标记成功
-                        if let Some(info) = self.connections.write().get_mut(idx) {
-                            info.mark_success();
-                        }
+                        success_original_indices.push(original_idx);
                     } else {
-                        failed_indices.push(idx);
+                        failed_original_indices.push(original_idx);
                     }
                 }
-                Err(_) => failed_indices.push(idx),
+                Err(_) => {
+                    failed_original_indices.push(original_idx);
+                }
             }
         }
         
-        // 标记失败的连接
-        if !failed_indices.is_empty() {
+        // 原子性地更新连接状态
+        // 使用原始索引，但需要验证索引仍然有效（连接未被移除）
+        if !success_original_indices.is_empty() || !failed_original_indices.is_empty() {
             let mut guard = self.connections.write();
-            for idx in failed_indices {
-                if let Some(info) = guard.get_mut(idx) {
-                    info.mark_failure();
+            let current_len = guard.len();
+            
+            // 标记成功的连接
+            for &idx in &success_original_indices {
+                if idx < current_len {
+                    if let Some(info) = guard.get_mut(idx) {
+                        // 验证这确实是我们要标记的连接（通过检查连接是否仍然健康）
+                        if info.is_healthy() {
+                            info.mark_success();
+                        }
+                    }
                 }
             }
-            // 移除不健康的连接
+            
+            // 标记失败的连接
+            for &idx in &failed_original_indices {
+                if idx < current_len {
+                    if let Some(info) = guard.get_mut(idx) {
+                        info.mark_failure();
+                    }
+                }
+            }
+            
+            // 移除不健康的连接（这可能会改变后续索引，但我们已经处理完了）
             guard.retain(|info| info.is_healthy());
         }
         

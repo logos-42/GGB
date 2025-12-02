@@ -153,7 +153,7 @@ impl Node {
 
     async fn run(mut self) -> Result<()> {
         let capabilities = self.device_manager.get();
-        let tick_interval = capabilities.recommended_tick_interval();
+        let mut tick_interval = capabilities.recommended_tick_interval();
         let mut ticker = interval(tick_interval);
         let mut device_refresh = interval(Duration::from_secs(60)); // 每分钟刷新设备状态
         
@@ -183,8 +183,9 @@ impl Node {
                     let caps = self.device_manager.get();
                     let new_interval = caps.recommended_tick_interval();
                     if new_interval != tick_interval {
-                        ticker = interval(new_interval);
-                        println!("[自适应] 调整训练频率: {:?}", new_interval);
+                        tick_interval = new_interval;
+                        ticker = interval(tick_interval);
+                        println!("[自适应] 调整训练频率: {:?}", tick_interval);
                     }
                     self.on_tick().await?;
                 }
@@ -424,6 +425,7 @@ async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let mut stats_output: Option<String> = None;
     let mut node_id: Option<usize> = None;
+    let mut model_dim: Option<usize> = None;
     
     let mut i = 1;
     while i < args.len() {
@@ -444,6 +446,14 @@ async fn main() -> Result<()> {
                     i += 1;
                 }
             }
+            "--model-dim" => {
+                if i + 1 < args.len() {
+                    model_dim = args[i + 1].parse().ok();
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
             _ => i += 1,
         }
     }
@@ -452,7 +462,12 @@ async fn main() -> Result<()> {
         println!("节点 ID: {}", id);
     }
     
-    let config = AppConfig::default();
+    // 构建配置，支持自定义模型维度
+    let mut config = AppConfig::default();
+    if let Some(dim) = model_dim {
+        config.inference.model_dim = dim;
+        println!("使用自定义模型维度: {}", dim);
+    }
     let node = Node::new(config).await?;
     
     // 如果指定了统计输出文件，设置定期导出
