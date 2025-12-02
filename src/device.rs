@@ -193,6 +193,7 @@ impl DeviceDetector {
 
     /// 检测网络类型
     /// 注意：需要平台特定实现
+    #[allow(dead_code)]
     pub fn detect_network_type() -> NetworkType {
         // TODO: 通过 FFI 调用平台网络检测 API
         // 目前返回默认值
@@ -210,6 +211,7 @@ impl DeviceDetector {
 
     /// 检测电池状态
     /// 注意：需要平台特定实现
+    #[allow(dead_code)]
     pub fn detect_battery() -> (Option<f32>, bool) {
         // TODO: 通过 FFI 调用平台电池检测 API
         // 目前从环境变量读取或返回 None
@@ -248,10 +250,12 @@ impl DeviceManager {
         self.capabilities.read().clone()
     }
 
+    #[allow(dead_code)]
     pub fn update_network_type(&self, network_type: NetworkType) {
         self.capabilities.write().network_type = network_type;
     }
 
+    #[allow(dead_code)]
     pub fn update_battery(&self, level: Option<f32>, is_charging: bool) {
         let mut caps = self.capabilities.write();
         caps.battery_level = level;

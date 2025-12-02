@@ -180,6 +180,7 @@ impl TrainingStatsManager {
         stats.model_version = version;
     }
 
+    #[allow(dead_code)]
     pub fn get(&self) -> TrainingStats {
         self.stats.read().clone()
     }
@@ -236,6 +237,7 @@ pub struct StatsSummary {
     pub connected_peers: usize,
     pub model_version: u64,
     pub model_hash: String,
+    #[allow(dead_code)]
     pub total_interactions: u64,
 }
 

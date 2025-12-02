@@ -326,6 +326,7 @@ impl QuicGateway {
     }
 
     /// 尝试重连所有失效的连接
+    #[allow(dead_code)]
     pub async fn reconnect_failed(&self, addrs: &[SocketAddr]) {
         let mut conns = self.connections.write();
         let failed_count = conns

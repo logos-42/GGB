@@ -144,11 +144,13 @@ impl InferenceEngine {
     }
 
     /// 获取当前内存使用（MB）
+    #[allow(dead_code)]
     pub fn memory_usage_mb(&self) -> usize {
         self.memory_pressure.read().current_usage_mb
     }
 
     /// 更新内存压力阈值
+    #[allow(dead_code)]
     pub fn set_memory_threshold(&self, threshold_mb: usize) {
         self.memory_pressure.write().pressure_threshold_mb = threshold_mb;
     }
