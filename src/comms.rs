@@ -1,4 +1,5 @@
 use crate::consensus::SignedGossip;
+use crate::device::NetworkType;
 use anyhow::{anyhow, Result};
 use libp2p::{
     gossipsub::{
@@ -17,6 +18,7 @@ use rustls::{Certificate, PrivateKey};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::time::interval;
 
 pub struct CommsConfig {
     pub topic: String,
@@ -132,6 +134,7 @@ pub struct CommsHandle {
     pub topic: Topic,
     quic: Option<Arc<QuicGateway>>,
     bandwidth: RwLock<BandwidthBudget>,
+    network_type: parking_lot::RwLock<crate::device::NetworkType>,
 }
 
 impl CommsHandle {
@@ -174,6 +177,7 @@ impl CommsHandle {
             topic,
             quic,
             bandwidth: RwLock::new(BandwidthBudget::new(config.bandwidth)),
+            network_type: parking_lot::RwLock::new(NetworkType::Unknown),
         })
     }
 
@@ -191,7 +195,23 @@ impl CommsHandle {
     }
 
     pub fn allow_dense_snapshot(&self, bytes: usize) -> bool {
+        // 检查网络类型是否允许密集快照
+        let network_type = *self.network_type.read();
+        if !network_type.allows_dense_snapshot() {
+            return false;
+        }
         self.bandwidth.write().allow_dense(bytes)
+    }
+
+    /// 更新网络类型
+    pub fn update_network_type(&self, network_type: NetworkType) {
+        *self.network_type.write() = network_type;
+        println!("[网络] 网络类型更新: {:?}", network_type);
+    }
+
+    /// 获取当前网络类型
+    pub fn network_type(&self) -> NetworkType {
+        *self.network_type.read()
     }
 
     pub async fn broadcast_realtime(&self, signed: &SignedGossip) -> bool {
@@ -204,7 +224,36 @@ impl CommsHandle {
 
 struct QuicGateway {
     endpoint: Endpoint,
-    connections: Arc<RwLock<Vec<quinn::Connection>>>,
+    connections: Arc<RwLock<Vec<ConnectionInfo>>>,
+}
+
+struct ConnectionInfo {
+    connection: quinn::Connection,
+    last_health_check: Instant,
+    consecutive_failures: u32,
+}
+
+impl ConnectionInfo {
+    fn new(connection: quinn::Connection) -> Self {
+        Self {
+            connection,
+            last_health_check: Instant::now(),
+            consecutive_failures: 0,
+        }
+    }
+
+    fn is_healthy(&self) -> bool {
+        self.consecutive_failures < 3
+    }
+
+    fn mark_failure(&mut self) {
+        self.consecutive_failures += 1;
+    }
+
+    fn mark_success(&mut self) {
+        self.consecutive_failures = 0;
+        self.last_health_check = Instant::now();
+    }
 }
 
 impl QuicGateway {
@@ -225,11 +274,34 @@ impl QuicGateway {
             loop {
                 match accept_endpoint.accept().await {
                     Some(connecting) => match connecting.await {
-                        Ok(conn) => accept_pool.write().push(conn),
+                        Ok(conn) => {
+                            accept_pool.write().push(ConnectionInfo::new(conn));
+                        }
                         Err(err) => eprintln!("[QUIC] accept error: {err:?}"),
                     },
                     None => tokio::time::sleep(Duration::from_secs(1)).await,
                 }
+            }
+        });
+        
+        // 启动连接健康检查任务
+        let health_check_connections = connections.clone();
+        tokio::spawn(async move {
+            let mut health_check_interval = interval(Duration::from_secs(30));
+            loop {
+                health_check_interval.tick().await;
+                let mut conns = health_check_connections.write();
+                conns.retain_mut(|info| {
+                    // 检查连接是否仍然有效
+                    if info.connection.close_reason().is_some() {
+                        return false;
+                    }
+                    // 如果超过 5 分钟没有成功通信，标记为失败
+                    if info.last_health_check.elapsed() > Duration::from_secs(300) {
+                        info.mark_failure();
+                    }
+                    info.is_healthy()
+                });
             }
         });
         Ok(Self {
@@ -242,12 +314,36 @@ impl QuicGateway {
         match self.endpoint.connect(addr, "ggs-quic") {
             Ok(connecting) => match connecting.await {
                 Ok(connection) => {
-                    self.connections.write().push(connection);
+                    self.connections
+                        .write()
+                        .push(ConnectionInfo::new(connection));
                     Ok(())
                 }
                 Err(err) => Err(err.into()),
             },
             Err(err) => Err(err.into()),
+        }
+    }
+
+    /// 尝试重连所有失效的连接
+    pub async fn reconnect_failed(&self, addrs: &[SocketAddr]) {
+        let mut conns = self.connections.write();
+        let failed_count = conns
+            .iter()
+            .filter(|info| !info.is_healthy())
+            .count();
+        
+        if failed_count > 0 {
+            println!("[QUIC] 检测到 {} 个失效连接，尝试重连", failed_count);
+            // 移除失效连接
+            conns.retain(|info| info.is_healthy());
+            
+            // 尝试重新连接
+            for addr in addrs {
+                if let Err(e) = self.connect(*addr).await {
+                    eprintln!("[QUIC] 重连失败 {}: {:?}", addr, e);
+                }
+            }
         }
     }
 
@@ -258,26 +354,45 @@ impl QuicGateway {
         };
         let entries: Vec<(usize, quinn::Connection)> = {
             let guard = self.connections.read();
-            guard.iter().cloned().enumerate().collect()
+            guard
+                .iter()
+                .filter(|info| info.is_healthy())
+                .enumerate()
+                .map(|(idx, info)| (idx, info.connection.clone()))
+                .collect()
         };
         let mut success = false;
-        let mut dead_indices = Vec::new();
+        let mut failed_indices = Vec::new();
+        
         for (idx, conn) in entries {
             match conn.open_uni().await {
                 Ok(mut send) => {
                     if send.write_all(&bytes).await.is_ok() && send.finish().await.is_ok() {
                         success = true;
+                        // 标记成功
+                        if let Some(info) = self.connections.write().get_mut(idx) {
+                            info.mark_success();
+                        }
+                    } else {
+                        failed_indices.push(idx);
                     }
                 }
-                Err(_) => dead_indices.push(idx),
+                Err(_) => failed_indices.push(idx),
             }
         }
-        if !dead_indices.is_empty() {
+        
+        // 标记失败的连接
+        if !failed_indices.is_empty() {
             let mut guard = self.connections.write();
-            for idx in dead_indices.into_iter().rev() {
-                let _ = guard.swap_remove(idx);
+            for idx in failed_indices {
+                if let Some(info) = guard.get_mut(idx) {
+                    info.mark_failure();
+                }
             }
+            // 移除不健康的连接
+            guard.retain(|info| info.is_healthy());
         }
+        
         success
     }
 }

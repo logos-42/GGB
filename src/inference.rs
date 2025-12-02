@@ -27,25 +27,44 @@ impl Default for InferenceConfig {
 pub struct InferenceEngine {
     state: Arc<RwLock<ModelState>>,
     config: InferenceConfig,
+    memory_pressure: Arc<RwLock<MemoryPressure>>,
+}
+
+struct MemoryPressure {
+    current_usage_mb: usize,
+    pressure_threshold_mb: usize,
 }
 
 struct ModelState {
     params: Array1<f32>,
     residual: Array1<f32>,
     version: u64,
+    // 收敛度追踪
+    previous_params: Option<Array1<f32>>,
+    hash_history: Vec<String>,
 }
 
 impl InferenceEngine {
     pub fn new(config: InferenceConfig) -> Result<Self> {
         let params = load_or_random(config.model_dim, config.model_path.as_deref())?;
         let residual = Array1::<f32>::zeros(params.len());
+        
+        // 估算内存使用：参数 + residual，每个 f32 4 字节
+        let estimated_mb = (params.len() * 2 * 4) / (1024 * 1024);
+        
         Ok(Self {
             state: Arc::new(RwLock::new(ModelState {
-                params,
+                params: params.clone(),
                 residual,
                 version: 1,
+                previous_params: Some(params),
+                hash_history: Vec::new(),
             })),
             config,
+            memory_pressure: Arc::new(RwLock::new(MemoryPressure {
+                current_usage_mb: estimated_mb,
+                pressure_threshold_mb: estimated_mb * 2, // 阈值设为当前使用的 2 倍
+            })),
         })
     }
 
@@ -67,6 +86,13 @@ impl InferenceEngine {
     }
 
     pub fn make_sparse_update(&self, k: usize) -> SparseUpdate {
+        // 检查内存压力，如果压力大则减少 Top-K
+        let effective_k = if self.is_memory_pressured() {
+            (k / 2).max(4) // 内存压力时减少到一半，最少 4
+        } else {
+            k
+        };
+        
         let mut state = self.state.write();
         let dim = state.params.len();
         if dim == 0 {
@@ -87,7 +113,7 @@ impl InferenceEngine {
             let bv = b.1.abs();
             bv.partial_cmp(&av).unwrap_or(std::cmp::Ordering::Equal)
         });
-        let take = k.min(dim);
+        let take = effective_k.min(dim);
         let topk = &idx_val[..take];
         let mut sparse_vals = Vec::with_capacity(take);
         let mut sparse_idx = Vec::with_capacity(take);
@@ -111,12 +137,32 @@ impl InferenceEngine {
         }
     }
 
+    /// 检查是否处于内存压力状态
+    pub fn is_memory_pressured(&self) -> bool {
+        let pressure = self.memory_pressure.read();
+        pressure.current_usage_mb >= pressure.pressure_threshold_mb
+    }
+
+    /// 获取当前内存使用（MB）
+    pub fn memory_usage_mb(&self) -> usize {
+        self.memory_pressure.read().current_usage_mb
+    }
+
+    /// 更新内存压力阈值
+    pub fn set_memory_threshold(&self, threshold_mb: usize) {
+        self.memory_pressure.write().pressure_threshold_mb = threshold_mb;
+    }
+
     pub fn apply_sparse_update(&self, update: &SparseUpdate) {
         if update.indices.is_empty() {
             return;
         }
         let idxs = decompress_indices(&update.indices);
         let mut state = self.state.write();
+        
+        // 保存当前参数用于收敛度计算
+        state.previous_params = Some(state.params.clone());
+        
         for (pos, &v) in idxs.iter().zip(update.values.iter()) {
             if *pos < state.params.len() {
                 let old = state.params[*pos];
@@ -126,24 +172,149 @@ impl InferenceEngine {
             }
         }
         state.version = state.version.max(update.version);
+        
+        // 更新 hash 历史
+        drop(state);
+        let hash = self.tensor_hash();
+        state = self.state.write();
+        state.hash_history.push(hash);
+        if state.hash_history.len() > 10 {
+            state.hash_history.remove(0);
+        }
     }
 
     pub fn apply_dense_snapshot(&self, snapshot: &TensorSnapshot) {
         let mut state = self.state.write();
+        
+        // 保存当前参数用于收敛度计算
+        state.previous_params = Some(state.params.clone());
+        
         let len = state.params.len().min(snapshot.values.len());
         for i in 0..len {
             state.params[i] = 0.8 * state.params[i] + 0.2 * snapshot.values[i];
         }
         state.version = state.version.max(snapshot.version);
+        
+        // 更新 hash 历史
+        drop(state);
+        let hash = self.tensor_hash();
+        state = self.state.write();
+        state.hash_history.push(hash);
+        if state.hash_history.len() > 10 {
+            state.hash_history.remove(0);
+        }
     }
 
     pub fn local_train_step(&self) {
         let mut rng = rand::thread_rng();
         let mut state = self.state.write();
+        
+        // 保存当前参数用于收敛度计算
+        state.previous_params = Some(state.params.clone());
+        
         for v in state.params.iter_mut() {
             *v += rng.gen_range(-1e-3..1e-3);
         }
         state.version = state.version.saturating_add(1);
+        
+        // 更新 hash 历史（保留最近 10 个）
+        let hash = self.tensor_hash();
+        state.hash_history.push(hash);
+        if state.hash_history.len() > 10 {
+            state.hash_history.remove(0);
+        }
+    }
+
+    /// 计算模型收敛度（0.0-1.0）
+    /// 1.0 表示完全收敛（参数不再变化），0.0 表示完全不收敛
+    pub fn convergence_score(&self) -> f32 {
+        let state = self.state.read();
+        
+        // 如果没有历史数据，返回 0.0
+        if state.previous_params.is_none() || state.params.len() == 0 {
+            return 0.0;
+        }
+        
+        let prev = state.previous_params.as_ref().unwrap();
+        
+        // 计算参数的平均变化幅度
+        let mut total_change = 0.0f32;
+        let mut count = 0;
+        for i in 0..state.params.len().min(prev.len()) {
+            let change = (state.params[i] - prev[i]).abs();
+            total_change += change;
+            count += 1;
+        }
+        
+        if count == 0 {
+            return 0.0;
+        }
+        
+        let avg_change = total_change / count as f32;
+        
+        // 计算参数的标准差（衡量参数分布）
+        let mean = state.params.iter().sum::<f32>() / state.params.len() as f32;
+        let variance = state.params.iter()
+            .map(|v| (v - mean).powi(2))
+            .sum::<f32>() / state.params.len() as f32;
+        let std_dev = variance.sqrt();
+        
+        // 收敛度计算：
+        // - 变化幅度越小，收敛度越高
+        // - 标准差越小（参数更集中），收敛度越高
+        // - hash 变化频率越低，收敛度越高
+        
+        let change_score = (1.0 - (avg_change * 1000.0).min(1.0)).max(0.0);
+        let std_score = if std_dev > 0.0 {
+            (1.0 - (std_dev * 10.0).min(1.0)).max(0.0)
+        } else {
+            1.0
+        };
+        
+        // hash 稳定性（如果最近 5 个 hash 都相同，说明模型稳定）
+        let hash_stability = if state.hash_history.len() >= 5 {
+            let recent = &state.hash_history[state.hash_history.len() - 5..];
+            let all_same = recent.windows(2).all(|w| w[0] == w[1]);
+            if all_same { 1.0 } else { 0.5 }
+        } else {
+            0.0
+        };
+        
+        // 加权平均
+        (change_score * 0.4 + std_score * 0.3 + hash_stability * 0.3).clamp(0.0, 1.0)
+    }
+
+    /// 计算参数的平均变化幅度
+    pub fn parameter_change_magnitude(&self) -> f32 {
+        let state = self.state.read();
+        if let Some(prev) = &state.previous_params {
+            let mut total_change = 0.0f32;
+            let mut count = 0;
+            for i in 0..state.params.len().min(prev.len()) {
+                total_change += (state.params[i] - prev[i]).abs();
+                count += 1;
+            }
+            if count > 0 {
+                total_change / count as f32
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        }
+    }
+
+    /// 计算参数的标准差
+    pub fn parameter_std_dev(&self) -> f32 {
+        let state = self.state.read();
+        if state.params.len() == 0 {
+            return 0.0;
+        }
+        let mean = state.params.iter().sum::<f32>() / state.params.len() as f32;
+        let variance = state.params.iter()
+            .map(|v| (v - mean).powi(2))
+            .sum::<f32>() / state.params.len() as f32;
+        variance.sqrt()
     }
 }
 

@@ -36,6 +36,19 @@ parking_lot = "0.12"
 rcgen = "0.12"
 futures = "0.3"
 rustls = "0.21"
+clap = { version = "4", features = ["derive"] }
+
+[features]
+default = []
+ffi = []
+
+[[example]]
+name = "multi_node_test"
+path = "examples/multi_node_test.rs"
+
+[[bin]]
+name = "analyze_training"
+path = "tools/analyze_training.rs"
 
 
 
