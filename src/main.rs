@@ -60,6 +60,8 @@ impl AppConfig {
                 dense_bytes_per_window: ((256 * 1024) as f32 * bandwidth_factor) as usize,
                 window_secs: 60,
             },
+            enable_dht: true,
+            bootstrap_peers_file: Some(std::path::PathBuf::from("bootstrap_peers.txt")),
         };
 
         // 根据设备能力调整拓扑配置
@@ -312,6 +314,50 @@ impl Node {
                             self.comms.remove_peer(&peer);
                         }
                     }
+                }
+            }
+            OutEvent::Kademlia(event) => {
+                match event {
+                    libp2p::kad::Event::RoutingUpdated { peer, .. } => {
+                        println!("[DHT] 路由更新: {}", peer);
+                        self.comms.add_peer(&peer);
+                    }
+                    libp2p::kad::Event::RoutingUpdated { .. } => {}
+                    libp2p::kad::Event::RoutablePeer { peer, .. } => {
+                        println!("[DHT] 发现可路由节点: {}", peer);
+                        self.comms.add_peer(&peer);
+                    }
+                    libp2p::kad::Event::PendingRoutablePeer { peer, .. } => {
+                        println!("[DHT] 待处理可路由节点: {}", peer);
+                    }
+                    libp2p::kad::Event::QueryResult { result, .. } => {
+                        match result {
+                            Ok(libp2p::kad::QueryResult::Bootstrap(ok)) => {
+                                if ok.num_remaining == 0 {
+                                    println!("[DHT] Bootstrap 完成，发现 {} 个节点", ok.num_remaining);
+                                }
+                            }
+                            Ok(libp2p::kad::QueryResult::GetProviders(providers)) => {
+                                println!("[DHT] 获取到 {} 个提供者", providers.providers.len());
+                                for peer in providers.providers {
+                                    self.comms.add_peer(&peer);
+                                }
+                            }
+                            Ok(libp2p::kad::QueryResult::GetRecord(record)) => {
+                                println!("[DHT] 获取到记录: {:?}", record.record.key);
+                            }
+                            Ok(libp2p::kad::QueryResult::PutRecord(key)) => {
+                                println!("[DHT] 存储记录: {:?}", key);
+                            }
+                            Ok(libp2p::kad::QueryResult::StartProviding(key)) => {
+                                println!("[DHT] 开始提供服务: {:?}", key);
+                            }
+                            Err(e) => {
+                                eprintln!("[DHT] 查询错误: {:?}", e);
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         }

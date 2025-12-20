@@ -50,7 +50,7 @@ public class GgbNode {
         if (nativeHandle == 0) {
             return;
         }
-        nativeSetDeviceCallback(nativeHandle);
+        nativeSetDeviceCallback(nativeHandle, context);
     }
     
     /**
@@ -170,29 +170,32 @@ public class GgbNode {
      * 检测移动网络类型（4G/5G）- Android 6.0+
      */
     private String detectCellularNetworkType(ConnectivityManager cm, Network network) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Android 10+ 可以使用 NetworkCapabilities 直接获取
-            NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
-            if (capabilities != null) {
-                int downstreamKbps = capabilities.getLinkDownstreamBandwidthKbps();
-                // 5G 通常有更高的带宽，但这只是粗略估计
-                // 更准确的方法需要使用 TelephonyManager
-            }
-        }
-        
         // 使用 TelephonyManager 检测真实网络类型
         TelephonyManager telephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
         if (telephonyManager != null) {
-            int networkType = telephonyManager.getDataNetworkType();
-            if (networkType == TelephonyManager.NETWORK_TYPE_NR) {
-                return "5g"; // 5G
-            } else if (networkType == TelephonyManager.NETWORK_TYPE_LTE ||
-                       networkType == TelephonyManager.NETWORK_TYPE_LTE_CA) {
-                return "4g"; // 4G
-            } else if (networkType == TelephonyManager.NETWORK_TYPE_UMTS ||
-                       networkType == TelephonyManager.NETWORK_TYPE_HSPA ||
-                       networkType == TelephonyManager.NETWORK_TYPE_HSPAP) {
-                return "4g"; // 3G/3.5G 归类为 4G
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                int networkType = telephonyManager.getDataNetworkType();
+                if (networkType == TelephonyManager.NETWORK_TYPE_NR) {
+                    return "5g"; // 5G
+                } else if (networkType == TelephonyManager.NETWORK_TYPE_LTE ||
+                           networkType == TelephonyManager.NETWORK_TYPE_LTE_CA) {
+                    return "4g"; // 4G
+                } else if (networkType == TelephonyManager.NETWORK_TYPE_UMTS ||
+                           networkType == TelephonyManager.NETWORK_TYPE_HSPA ||
+                           networkType == TelephonyManager.NETWORK_TYPE_HSPAP) {
+                    return "4g"; // 3G/3.5G 归类为 4G
+                }
+            } else {
+                // Android 10 以下使用 getNetworkType
+                int networkType = telephonyManager.getNetworkType();
+                if (networkType == TelephonyManager.NETWORK_TYPE_LTE ||
+                    networkType == TelephonyManager.NETWORK_TYPE_LTE_CA) {
+                    return "4g";
+                } else if (networkType == TelephonyManager.NETWORK_TYPE_UMTS ||
+                           networkType == TelephonyManager.NETWORK_TYPE_HSPA ||
+                           networkType == TelephonyManager.NETWORK_TYPE_HSPAP) {
+                    return "4g";
+                }
             }
         }
         
@@ -219,7 +222,7 @@ public class GgbNode {
     /**
      * 获取设备内存（MB）
      */
-    private int getDeviceMemoryMB() {
+    public int getDeviceMemoryMB() {
         ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         if (activityManager != null) {
             ActivityManager.MemoryInfo memInfo = new ActivityManager.MemoryInfo();
@@ -234,7 +237,7 @@ public class GgbNode {
     /**
      * 获取 CPU 核心数
      */
-    private int getCpuCores() {
+    public int getCpuCores() {
         return Runtime.getRuntime().availableProcessors();
     }
     
@@ -294,22 +297,7 @@ public class GgbNode {
     private native long nativeRecommendedTickInterval(long handle);
     private native int nativeShouldPauseTraining(long handle);
     private native void nativeStringFree(String ptr);
-    private native void nativeSetDeviceCallback(long handle);
+    private native void nativeSetDeviceCallback(long handle, Context context);
     private native int nativeRefreshDeviceInfo(long handle);
-    
-    /**
-     * JNI 回调函数：从 Android 获取设备信息
-     * 这个函数会被 Rust 层的回调函数调用
-     */
-    private static int getDeviceInfo(
-            long memoryMbPtr,
-            long cpuCoresPtr,
-            byte[] networkTypeBuf,
-            long batteryLevelPtr,
-            long isChargingPtr) {
-        // 这个函数需要从 JNI 层实现，通过全局引用获取 Context
-        // 实际实现会在 ggb_jni.cpp 中
-        return 0;
-    }
 }
 

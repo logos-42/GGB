@@ -7,10 +7,12 @@ use libp2p::{
         MessageAuthenticity, PublishError, ValidationMode,
     },
     identity,
+    kad::{self, store::MemoryStore, Kademlia, KademliaEvent},
     mdns::{self, tokio::Behaviour as Mdns, Event as MdnsEvent},
     swarm::{NetworkBehaviour, SwarmBuilder},
     Multiaddr, PeerId, Swarm,
 };
+use std::path::PathBuf;
 use parking_lot::RwLock;
 use quinn::{Endpoint, ServerConfig};
 use rcgen::generate_simple_self_signed;
@@ -26,6 +28,8 @@ pub struct CommsConfig {
     pub quic_bind: Option<SocketAddr>,
     pub quic_bootstrap: Vec<SocketAddr>,
     pub bandwidth: BandwidthBudgetConfig,
+    pub enable_dht: bool,
+    pub bootstrap_peers_file: Option<PathBuf>,
 }
 
 impl Default for CommsConfig {
@@ -36,6 +40,8 @@ impl Default for CommsConfig {
             quic_bind: Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 9234)),
             quic_bootstrap: Vec::new(),
             bandwidth: BandwidthBudgetConfig::default(),
+            enable_dht: true,
+            bootstrap_peers_file: None,
         }
     }
 }
@@ -108,12 +114,14 @@ impl BandwidthBudget {
 pub struct Behaviour {
     gossipsub: GossipsubBehaviour,
     mdns: Mdns,
+    kademlia: Kademlia<MemoryStore>,
 }
 
 #[derive(Debug)]
 pub enum OutEvent {
     Gossipsub(GossipsubEvent),
     Mdns(MdnsEvent),
+    Kademlia(KademliaEvent),
 }
 
 impl From<GossipsubEvent> for OutEvent {
@@ -125,6 +133,12 @@ impl From<GossipsubEvent> for OutEvent {
 impl From<MdnsEvent> for OutEvent {
     fn from(v: MdnsEvent) -> Self {
         OutEvent::Mdns(v)
+    }
+}
+
+impl From<KademliaEvent> for OutEvent {
+    fn from(v: KademliaEvent) -> Self {
+        OutEvent::Kademlia(v)
     }
 }
 
@@ -155,7 +169,41 @@ impl CommsHandle {
         let topic = Topic::new(config.topic.clone());
         gossipsub.subscribe(&topic)?;
         let mdns = Mdns::new(mdns::Config::default(), peer_id)?;
-        let behaviour = Behaviour { gossipsub, mdns };
+        
+        // 初始化 Kademlia DHT
+        let store = MemoryStore::new(peer_id);
+        let mut kademlia = Kademlia::new(peer_id, store);
+        kademlia.set_mode(Some(kad::Mode::Server));
+        
+        // 从文件加载 bootstrap 节点（如果存在）
+        let mut bootstrap_peers = Vec::new();
+        if let Some(ref file_path) = config.bootstrap_peers_file {
+            if let Ok(content) = std::fs::read_to_string(file_path) {
+                for line in content.lines() {
+                    if let Ok(addr) = line.trim().parse::<Multiaddr>() {
+                        bootstrap_peers.push(addr);
+                    }
+                }
+            }
+        }
+        
+        // 添加 bootstrap 节点到 Kademlia
+        for addr in &bootstrap_peers {
+            if let Ok((peer_id, _)) = addr.clone().try_into() {
+                kademlia.add_address(&peer_id, addr.clone());
+            }
+        }
+        
+        // 如果启用 DHT，开始 bootstrap
+        if config.enable_dht && !bootstrap_peers.is_empty() {
+            kademlia.bootstrap()?;
+        }
+        
+        let behaviour = Behaviour {
+            gossipsub,
+            mdns,
+            kademlia,
+        };
         let mut swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, peer_id).build();
         if let Some(addr) = config.listen_addr {
             swarm.listen_on(addr)?;

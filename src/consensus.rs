@@ -6,6 +6,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+#[cfg(feature = "blockchain")]
+use crate::blockchain::BlockchainClient;
+
 #[derive(Clone, Debug)]
 pub struct StakeRecord {
     pub stake_eth: f64,
@@ -45,6 +48,8 @@ pub struct ConsensusEngine {
     crypto: Arc<CryptoSuite>,
     ledger: RwLock<HashMap<String, StakeRecord>>,
     config: ConsensusConfig,
+    #[cfg(feature = "blockchain")]
+    blockchain_client: Option<Arc<dyn BlockchainClient>>,
 }
 
 impl ConsensusEngine {
@@ -53,6 +58,24 @@ impl ConsensusEngine {
             crypto,
             ledger: RwLock::new(HashMap::new()),
             config,
+            #[cfg(feature = "blockchain")]
+            blockchain_client: None,
+        }
+    }
+    
+    #[cfg(feature = "blockchain")]
+    pub fn with_blockchain_client(mut self, client: Arc<dyn BlockchainClient>) -> Self {
+        self.blockchain_client = Some(client);
+        self
+    }
+    
+    #[cfg(feature = "blockchain")]
+    /// 从链上查询质押信息（如果配置了区块链客户端）
+    pub async fn query_stake_from_chain(&self, address: &str) -> Option<f64> {
+        if let Some(client) = &self.blockchain_client {
+            client.query_stake(address).await.ok()
+        } else {
+            None
         }
     }
 
@@ -110,6 +133,22 @@ impl ConsensusEngine {
             .read()
             .get(peer)
             .map(|record| record.combined_weight())
-            .unwrap_or(0.0)
+            .unwrap_or(0.1)
+    }
+    
+    #[cfg(feature = "blockchain")]
+    /// 同步链上质押信息到内存账本
+    pub async fn sync_stake_from_chain(&self, peer: &str) {
+        if let Some(stake) = self.query_stake_from_chain(peer).await {
+            let mut ledger = self.ledger.write();
+            let entry = ledger.entry(peer.to_string()).or_insert(StakeRecord {
+                stake_eth: 0.0,
+                stake_sol: 0.0,
+                reputation: 1.0,
+                last_seen: Instant::now(),
+            });
+            entry.stake_eth = stake;
+            entry.last_seen = Instant::now();
+        }
     }
 }

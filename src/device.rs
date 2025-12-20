@@ -250,16 +250,21 @@ impl DeviceManager {
         self.capabilities.read().clone()
     }
 
-    #[allow(dead_code)]
     pub fn update_network_type(&self, network_type: NetworkType) {
         self.capabilities.write().network_type = network_type;
     }
 
-    #[allow(dead_code)]
     pub fn update_battery(&self, level: Option<f32>, is_charging: bool) {
         let mut caps = self.capabilities.write();
         caps.battery_level = level;
         caps.is_charging = is_charging;
+    }
+    
+    /// 更新内存和 CPU 信息（用于 FFI 回调）
+    pub fn update_hardware(&self, memory_mb: usize, cpu_cores: usize) {
+        let mut caps = self.capabilities.write();
+        caps.max_memory_mb = memory_mb;
+        caps.cpu_cores = cpu_cores;
     }
 
     pub fn refresh(&self) {

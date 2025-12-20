@@ -320,11 +320,70 @@ impl InferenceEngine {
     }
 }
 
+/// 验证模型文件
+pub fn validate_model_file(path: &Path, expected_dim: Option<usize>) -> Result<()> {
+    if !path.exists() {
+        return Err(anyhow!("模型文件不存在: {:?}", path));
+    }
+    
+    // 检查文件扩展名
+    if path.extension().and_then(|s| s.to_str()) != Some("npy") {
+        return Err(anyhow!("模型文件必须是 .npy 格式"));
+    }
+    
+    // 尝试加载文件
+    let file = File::open(path)?;
+    let arr: Array1<f32> = Array1::read_npy(file)?;
+    
+    // 检查维度
+    if let Some(expected) = expected_dim {
+        if arr.len() != expected {
+            return Err(anyhow!(
+                "模型维度不匹配: 期望 {}, 实际 {}",
+                expected,
+                arr.len()
+            ));
+        }
+    }
+    
+    // 检查参数值是否在合理范围内
+    let min_val = arr.iter().cloned().fold(f32::INFINITY, f32::min);
+    let max_val = arr.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+    
+    if min_val.is_infinite() || max_val.is_infinite() || min_val.is_nan() || max_val.is_nan() {
+        return Err(anyhow!("模型包含无效值 (NaN 或 Infinity)"));
+    }
+    
+    // 检查参数范围是否合理（通常在 -10 到 10 之间）
+    if min_val < -100.0 || max_val > 100.0 {
+        return Err(anyhow!(
+            "模型参数值超出合理范围: [{}, {}]",
+            min_val,
+            max_val
+        ));
+    }
+    
+    Ok(())
+}
+
 fn load_or_random(dim: usize, path: Option<&Path>) -> Result<Array1<f32>> {
     if let Some(path) = path {
         if path.exists() {
+            // 验证模型文件
+            validate_model_file(path, Some(dim))?;
+            
             let file = File::open(path)?;
             let arr: Array1<f32> = Array1::read_npy(file)?;
+            
+            // 再次检查维度（双重验证）
+            if arr.len() != dim {
+                return Err(anyhow!(
+                    "模型维度不匹配: 配置 {}, 文件 {}",
+                    dim,
+                    arr.len()
+                ));
+            }
+            
             return Ok(arr);
         } else {
             return Err(anyhow!("model file {:?} not found", path));
