@@ -1,4 +1,4 @@
-package com.ggs;
+package com.ggb;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
@@ -8,28 +8,28 @@ import android.os.Build;
 import android.util.Log;
 
 /**
- * GGS 节点 Java 包装类
+ * GGB 节点 Java 包装类
  * 
  * 提供 Android 平台特定的设备能力检测和节点管理功能
  */
-public class GgsNode {
-    private static final String TAG = "GgsNode";
+public class GgbNode {
+    private static final String TAG = "GgbNode";
     
     private long nativeHandle = 0;
     private Context context;
     
     static {
-        System.loadLibrary("ggs");
+        System.loadLibrary("ggb");
     }
     
     /**
      * 创建新的节点实例
      */
-    public GgsNode(Context context) {
+    public GgbNode(Context context) {
         this.context = context;
         this.nativeHandle = nativeCreate();
         if (nativeHandle == 0) {
-            throw new RuntimeException("Failed to create GGS node");
+            throw new RuntimeException("Failed to create GGB node");
         }
         
         // 初始化设备能力

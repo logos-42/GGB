@@ -44,9 +44,9 @@ cargo run
 
 ```bash
 # 模拟低端移动设备
-$env:GGS_DEVICE_TYPE="low"
-$env:GGS_NETWORK_TYPE="4g"
-$env:GGS_BATTERY_LEVEL="0.5"
+$env:GGB_DEVICE_TYPE="low"
+$env:GGB_NETWORK_TYPE="4g"
+$env:GGB_BATTERY_LEVEL="0.5"
 cargo run
 ```
 

@@ -76,7 +76,7 @@ pub fn decompress_indices(compressed: &[u32]) -> Vec<usize> {
 
 /// Gossip 消息体
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum GgsMessage {
+pub enum GgbMessage {
     Heartbeat {
         peer: String,
         model_hash: String,

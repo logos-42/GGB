@@ -1,8 +1,8 @@
 //
-//  GGS.swift
-//  GGS
+//  GGB.swift
+//  GGB
 //
-//  GGS 节点 Swift 包装类
+//  GGB 节点 Swift 包装类
 //
 
 import Foundation
@@ -17,15 +17,15 @@ public enum NetworkType: String {
     case unknown = "unknown"
 }
 
-/// GGS 节点 Swift 包装类
-public class GgsNode {
+/// GGB 节点 Swift 包装类
+public class GgbNode {
     private var nativeHandle: OpaquePointer?
     
     /// 初始化节点
     public init() {
-        self.nativeHandle = ggs_node_create()
+        self.nativeHandle = ggb_node_create()
         if nativeHandle == nil {
-            fatalError("Failed to create GGS node")
+            fatalError("Failed to create GGB node")
         }
         
         // 初始化设备能力
@@ -36,9 +36,9 @@ public class GgsNode {
     public func getCapabilities() -> String? {
         guard let handle = nativeHandle else { return nil }
         
-        if let jsonPtr = ggs_node_get_capabilities(handle) {
+        if let jsonPtr = ggb_node_get_capabilities(handle) {
             let json = String(cString: jsonPtr)
-            ggs_string_free(jsonPtr)
+            ggb_string_free(jsonPtr)
             return json
         }
         return nil
@@ -49,7 +49,7 @@ public class GgsNode {
         guard let handle = nativeHandle else { return }
         
         let result = type.rawValue.withCString { cString in
-            ggs_node_update_network_type(handle, cString)
+            ggb_node_update_network_type(handle, cString)
         }
         
         if result != 0 {
@@ -67,7 +67,7 @@ public class GgsNode {
     public func updateBattery(level: Float, isCharging: Bool) {
         guard let handle = nativeHandle else { return }
         
-        let result = ggs_node_update_battery(handle, level, isCharging ? 1 : 0)
+        let result = ggb_node_update_battery(handle, level, isCharging ? 1 : 0)
         if result != 0 {
             print("警告: 更新电池状态失败")
         }
@@ -119,54 +119,54 @@ public class GgsNode {
     /// 获取推荐的模型维度
     public func getRecommendedModelDim() -> Int {
         guard let handle = nativeHandle else { return 256 }
-        return Int(ggs_node_recommended_model_dim(handle))
+        return Int(ggb_node_recommended_model_dim(handle))
     }
     
     /// 获取推荐的训练间隔（秒）
     public func getRecommendedTickInterval() -> UInt64 {
         guard let handle = nativeHandle else { return 10 }
-        return ggs_node_recommended_tick_interval(handle)
+        return ggb_node_recommended_tick_interval(handle)
     }
     
     /// 检查是否应该暂停训练
     public func shouldPauseTraining() -> Bool {
         guard let handle = nativeHandle else { return false }
-        return ggs_node_should_pause_training(handle) != 0
+        return ggb_node_should_pause_training(handle) != 0
     }
     
     /// 释放资源
     deinit {
         if let handle = nativeHandle {
-            ggs_node_destroy(handle)
+            ggb_node_destroy(handle)
         }
     }
 }
 
 // C FFI 函数声明
-@_silgen_name("ggs_node_create")
-private func ggs_node_create() -> OpaquePointer?
+@_silgen_name("ggb_node_create")
+private func ggb_node_create() -> OpaquePointer?
 
-@_silgen_name("ggs_node_destroy")
-private func ggs_node_destroy(_ handle: OpaquePointer?)
+@_silgen_name("ggb_node_destroy")
+private func ggb_node_destroy(_ handle: OpaquePointer?)
 
-@_silgen_name("ggs_node_get_capabilities")
-private func ggs_node_get_capabilities(_ handle: OpaquePointer?) -> UnsafePointer<CChar>?
+@_silgen_name("ggb_node_get_capabilities")
+private func ggb_node_get_capabilities(_ handle: OpaquePointer?) -> UnsafePointer<CChar>?
 
-@_silgen_name("ggs_node_update_network_type")
-private func ggs_node_update_network_type(_ handle: OpaquePointer?, _ networkType: UnsafePointer<CChar>?) -> Int32
+@_silgen_name("ggb_node_update_network_type")
+private func ggb_node_update_network_type(_ handle: OpaquePointer?, _ networkType: UnsafePointer<CChar>?) -> Int32
 
-@_silgen_name("ggs_node_update_battery")
-private func ggs_node_update_battery(_ handle: OpaquePointer?, _ level: Float, _ isCharging: Int32) -> Int32
+@_silgen_name("ggb_node_update_battery")
+private func ggb_node_update_battery(_ handle: OpaquePointer?, _ level: Float, _ isCharging: Int32) -> Int32
 
-@_silgen_name("ggs_node_recommended_model_dim")
-private func ggs_node_recommended_model_dim(_ handle: OpaquePointer?) -> UInt
+@_silgen_name("ggb_node_recommended_model_dim")
+private func ggb_node_recommended_model_dim(_ handle: OpaquePointer?) -> UInt
 
-@_silgen_name("ggs_node_recommended_tick_interval")
-private func ggs_node_recommended_tick_interval(_ handle: OpaquePointer?) -> UInt64
+@_silgen_name("ggb_node_recommended_tick_interval")
+private func ggb_node_recommended_tick_interval(_ handle: OpaquePointer?) -> UInt64
 
-@_silgen_name("ggs_node_should_pause_training")
-private func ggs_node_should_pause_training(_ handle: OpaquePointer?) -> Int32
+@_silgen_name("ggb_node_should_pause_training")
+private func ggb_node_should_pause_training(_ handle: OpaquePointer?) -> Int32
 
-@_silgen_name("ggs_string_free")
-private func ggs_string_free(_ ptr: UnsafePointer<CChar>?)
+@_silgen_name("ggb_string_free")
+private func ggb_string_free(_ ptr: UnsafePointer<CChar>?)
 

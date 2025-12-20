@@ -8,10 +8,10 @@
 
 ```
 ios/
-├── GGS/
-│   ├── GGS.swift          # Swift 包装类
-│   └── GGS.h              # Objective-C 头文件
-├── GGS.xcodeproj/         # Xcode 项目
+├── GGB/
+│   ├── GGB.swift          # Swift 包装类
+│   └── GGB.h              # Objective-C 头文件
+├── GGB.xcodeproj/         # Xcode 项目
 └── README.md
 ```
 
@@ -41,15 +41,15 @@ ios/
 4. **集成到 Xcode 项目**
    - 将 `.xcframework` 添加到 Xcode 项目
    - 在 Build Settings 中配置 Framework Search Paths
-   - 链接 `GGS.framework`
+   - 链接 `GGB.framework`
 
 ## 使用示例
 
 ```swift
-import GGS
+import GGB
 
 // 创建节点实例
-let node = GgsNode()
+let node = GgbNode()
 
 // 获取设备能力
 if let capabilities = node.getCapabilities() {

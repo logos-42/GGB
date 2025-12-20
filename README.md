@@ -1,6 +1,8 @@
-# GGS 去中心化训练节点
+# GGB 去中心化训练节点
 
-面向 Geo-Similarity-Weighted Gossip (GGS) 的 Rust 节点实现，集成真实推理张量、QUIC Gossip 通道、地理 + 嵌入双指标拓扑、以及 Web3 签名 / 质押 / 信誉系统，可直接部署到 Base 网络环境。
+**GGB (Geo-Gossip Base)** - 地理流言基础平台
+
+面向 Geo-Similarity-Weighted Gossip 的 Rust 节点实现，集成真实推理张量、QUIC Gossip 通道、地理 + 嵌入双指标拓扑、以及 Web3 签名 / 质押 / 信誉系统，可直接部署到 Base 网络环境。
 
 ## 功能概览
 
@@ -41,7 +43,7 @@ cargo check          # 仅编译检查
 cargo run            # 运行节点，默认随机Geo位置 & 128维模型
 ```
 
-启动日志中将输出本地 peer id、ETH/SOL 地址、模型维度、设备能力信息，以及拓扑评分详情。默认 Gossip 主题为 `ggs-training`，可在 `CommsConfig` 自定义监听地址 / QUIC 端口 / 带宽预算。
+启动日志中将输出本地 peer id、ETH/SOL 地址、模型维度、设备能力信息，以及拓扑评分详情。默认 Gossip 主题为 `ggb-training`，可在 `CommsConfig` 自定义监听地址 / QUIC 端口 / 带宽预算。
 
 ### 移动设备适配
 
@@ -50,10 +52,10 @@ cargo run            # 运行节点，默认随机Geo位置 & 128维模型
 - **环境变量配置**（用于测试）：
   ```bash
   # 设置设备类型
-  export GGS_DEVICE_TYPE=low    # low/mid/high
-  export GGS_NETWORK_TYPE=wifi   # wifi/4g/5g
-  export GGS_BATTERY_LEVEL=0.75  # 0.0-1.0
-  export GGS_BATTERY_CHARGING=true
+  export GGB_DEVICE_TYPE=low    # low/mid/high
+  export GGB_NETWORK_TYPE=wifi   # wifi/4g/5g
+  export GGB_BATTERY_LEVEL=0.75  # 0.0-1.0
+  export GGB_BATTERY_CHARGING=true
   
   cargo run
   ```
@@ -100,7 +102,7 @@ cargo run --bin analyze_training -- --input test_output
 ### Android
 
 Android 集成代码位于 `android/` 目录，包含：
-- Java 包装类 (`GgsNode.java`)
+- Java 包装类 (`GgbNode.java`)
 - 设备能力检测（网络、电池）
 - JNI 绑定配置
 
@@ -109,7 +111,7 @@ Android 集成代码位于 `android/` 目录，包含：
 ### iOS
 
 iOS 集成代码位于 `ios/` 目录，包含：
-- Swift 包装类 (`GGS.swift`)
+- Swift 包装类 (`GGB.swift`)
 - 设备能力检测（网络、电池）
 - XCFramework 构建配置
 
@@ -150,7 +152,7 @@ iOS 集成代码位于 `ios/` 目录，包含：
 
 ## 贡献与远程
 
-仓库：`git@github.com:logos-42/GGS.git`  
+仓库：`git@github.com:logos-42/GGB.git`  
 当前默认分支为 `master`，欢迎在此基础上提交 PR 或扩展模块（例如 WebRTC、治理合约集成等）。
 
 

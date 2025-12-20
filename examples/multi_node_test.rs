@@ -41,7 +41,7 @@ struct Args {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    println!("=== GGS 多节点协同训练测试 ===");
+    println!("=== GGB 多节点协同训练测试 ===");
     println!("节点数量: {}", args.nodes);
     println!("训练时长: {} 秒", args.duration);
     println!("模型维度: {}", args.model_dim);
@@ -119,7 +119,7 @@ async fn start_node(
             "--stats-output",
             &stats_file,
         ])
-        .env("GGS_DEVICE_TYPE", device_type)
+        .env("GGB_DEVICE_TYPE", device_type)
         .env("RUST_LOG", &log_level)
         .stdout(Stdio::from(
             std::fs::File::create(&log_file).expect("无法创建日志文件"),

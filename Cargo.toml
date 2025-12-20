@@ -1,5 +1,5 @@
 [package]
-name = "GGS"
+name = "GGB"
 version = "0.1.0"
 edition = "2021"
 
@@ -35,7 +35,7 @@ thiserror = "1.0"
 parking_lot = "0.12"
 rcgen = "0.12"
 futures = "0.3"
-rustls = "0.21"
+rustls = { version = "0.21", features = ["dangerous_configuration"] }
 clap = { version = "4", features = ["derive"] }
 
 [features]

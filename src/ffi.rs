@@ -3,7 +3,7 @@
 //! 这个模块提供了 C 兼容的 FFI 接口，允许移动端应用调用 Rust 核心功能
 
 use crate::device::{DeviceCapabilities, DeviceManager, NetworkType};
-use crate::types::GgsMessage;
+use crate::types::GgbMessage;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
 use std::sync::Arc;
@@ -29,9 +29,9 @@ pub struct NodeHandle {
 /// 创建新的节点实例
 ///
 /// # Safety
-/// 返回的指针必须通过 `ggs_node_destroy` 释放
+/// 返回的指针必须通过 `ggb_node_destroy` 释放
 #[no_mangle]
-pub unsafe extern "C" fn ggs_node_create() -> *mut NodeHandle {
+pub unsafe extern "C" fn ggb_node_create() -> *mut NodeHandle {
     let device_manager = DeviceManager::new();
     let handle = Box::new(NodeHandle { device_manager });
     Box::into_raw(handle)
@@ -40,9 +40,9 @@ pub unsafe extern "C" fn ggs_node_create() -> *mut NodeHandle {
 /// 销毁节点实例
 ///
 /// # Safety
-/// ptr 必须是通过 `ggs_node_create` 创建的有效指针
+/// ptr 必须是通过 `ggb_node_create` 创建的有效指针
 #[no_mangle]
-pub unsafe extern "C" fn ggs_node_destroy(ptr: *mut NodeHandle) {
+pub unsafe extern "C" fn ggb_node_destroy(ptr: *mut NodeHandle) {
     if !ptr.is_null() {
         let _ = Box::from_raw(ptr);
     }
@@ -52,9 +52,9 @@ pub unsafe extern "C" fn ggs_node_destroy(ptr: *mut NodeHandle) {
 ///
 /// # Safety
 /// ptr 必须是有效的节点句柄
-/// 返回的字符串必须通过 `ggs_string_free` 释放
+/// 返回的字符串必须通过 `ggb_string_free` 释放
 #[no_mangle]
-pub unsafe extern "C" fn ggs_node_get_capabilities(
+pub unsafe extern "C" fn ggb_node_get_capabilities(
     ptr: *const NodeHandle,
 ) -> *mut c_char {
     if ptr.is_null() {
@@ -82,7 +82,7 @@ pub unsafe extern "C" fn ggs_node_get_capabilities(
 /// ptr 必须是有效的节点句柄
 /// network_type_str 必须是有效的 C 字符串
 #[no_mangle]
-pub unsafe extern "C" fn ggs_node_update_network_type(
+pub unsafe extern "C" fn ggb_node_update_network_type(
     ptr: *mut NodeHandle,
     network_type_str: *const c_char,
 ) -> c_int {
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn ggs_node_update_network_type(
 /// # Safety
 /// ptr 必须是有效的节点句柄
 #[no_mangle]
-pub unsafe extern "C" fn ggs_node_update_battery(
+pub unsafe extern "C" fn ggb_node_update_battery(
     ptr: *mut NodeHandle,
     level: f32,      // 0.0-1.0
     is_charging: c_int, // 0 = false, 1 = true
@@ -136,7 +136,7 @@ pub unsafe extern "C" fn ggs_node_update_battery(
 /// # Safety
 /// ptr 必须是通过 FFI 函数返回的有效字符串指针
 #[no_mangle]
-pub unsafe extern "C" fn ggs_string_free(ptr: *mut c_char) {
+pub unsafe extern "C" fn ggb_string_free(ptr: *mut c_char) {
     if !ptr.is_null() {
         let _ = CString::from_raw(ptr);
     }
@@ -147,7 +147,7 @@ pub unsafe extern "C" fn ggs_string_free(ptr: *mut c_char) {
 /// # Safety
 /// ptr 必须是有效的节点句柄
 #[no_mangle]
-pub unsafe extern "C" fn ggs_node_recommended_model_dim(
+pub unsafe extern "C" fn ggb_node_recommended_model_dim(
     ptr: *const NodeHandle,
 ) -> usize {
     if ptr.is_null() {
@@ -164,7 +164,7 @@ pub unsafe extern "C" fn ggs_node_recommended_model_dim(
 /// # Safety
 /// ptr 必须是有效的节点句柄
 #[no_mangle]
-pub unsafe extern "C" fn ggs_node_recommended_tick_interval(
+pub unsafe extern "C" fn ggb_node_recommended_tick_interval(
     ptr: *const NodeHandle,
 ) -> u64 {
     if ptr.is_null() {
@@ -181,7 +181,7 @@ pub unsafe extern "C" fn ggs_node_recommended_tick_interval(
 /// # Safety
 /// ptr 必须是有效的节点句柄
 #[no_mangle]
-pub unsafe extern "C" fn ggs_node_should_pause_training(
+pub unsafe extern "C" fn ggb_node_should_pause_training(
     ptr: *const NodeHandle,
 ) -> c_int {
     if ptr.is_null() {
@@ -204,45 +204,45 @@ mod tests {
     #[test]
     fn test_node_create_destroy() {
         unsafe {
-            let ptr = ggs_node_create();
+            let ptr = ggb_node_create();
             assert!(!ptr.is_null());
-            ggs_node_destroy(ptr);
+            ggb_node_destroy(ptr);
         }
     }
 
     #[test]
     fn test_get_capabilities() {
         unsafe {
-            let ptr = ggs_node_create();
-            let json_ptr = ggs_node_get_capabilities(ptr);
+            let ptr = ggb_node_create();
+            let json_ptr = ggb_node_get_capabilities(ptr);
             assert!(!json_ptr.is_null());
             
             let json = CStr::from_ptr(json_ptr).to_str().unwrap();
             assert!(json.contains("max_memory_mb"));
             
-            ggs_string_free(json_ptr);
-            ggs_node_destroy(ptr);
+            ggb_string_free(json_ptr);
+            ggb_node_destroy(ptr);
         }
     }
 
     #[test]
     fn test_update_network_type() {
         unsafe {
-            let ptr = ggs_node_create();
+            let ptr = ggb_node_create();
             let wifi = CString::new("wifi").unwrap();
-            let result = ggs_node_update_network_type(ptr, wifi.as_ptr());
+            let result = ggb_node_update_network_type(ptr, wifi.as_ptr());
             assert_eq!(result, FfiError::Success as c_int);
-            ggs_node_destroy(ptr);
+            ggb_node_destroy(ptr);
         }
     }
 
     #[test]
     fn test_update_battery() {
         unsafe {
-            let ptr = ggs_node_create();
-            let result = ggs_node_update_battery(ptr, 0.75, 1);
+            let ptr = ggb_node_create();
+            let result = ggb_node_update_battery(ptr, 0.75, 1);
             assert_eq!(result, FfiError::Success as c_int);
-            ggs_node_destroy(ptr);
+            ggb_node_destroy(ptr);
         }
     }
 }

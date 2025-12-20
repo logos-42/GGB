@@ -179,7 +179,7 @@ impl DeviceDetector {
     pub fn detect() -> DeviceCapabilities {
         // TODO: 实现真正的平台检测
         // 目前使用环境变量或默认值
-        if let Ok(device_type) = std::env::var("GGS_DEVICE_TYPE") {
+        if let Ok(device_type) = std::env::var("GGB_DEVICE_TYPE") {
             match device_type.as_str() {
                 "low" => DeviceCapabilities::low_end_mobile(),
                 "mid" => DeviceCapabilities::mid_range_mobile(),
@@ -197,7 +197,7 @@ impl DeviceDetector {
     pub fn detect_network_type() -> NetworkType {
         // TODO: 通过 FFI 调用平台网络检测 API
         // 目前返回默认值
-        if let Ok(net_type) = std::env::var("GGS_NETWORK_TYPE") {
+        if let Ok(net_type) = std::env::var("GGB_NETWORK_TYPE") {
             match net_type.as_str() {
                 "wifi" => NetworkType::WiFi,
                 "5g" => NetworkType::Cellular5G,
@@ -215,9 +215,9 @@ impl DeviceDetector {
     pub fn detect_battery() -> (Option<f32>, bool) {
         // TODO: 通过 FFI 调用平台电池检测 API
         // 目前从环境变量读取或返回 None
-        if let Ok(level) = std::env::var("GGS_BATTERY_LEVEL") {
+        if let Ok(level) = std::env::var("GGB_BATTERY_LEVEL") {
             if let Ok(level_f) = level.parse::<f32>() {
-                let charging = std::env::var("GGS_BATTERY_CHARGING")
+                let charging = std::env::var("GGB_BATTERY_CHARGING")
                     .map(|v| v == "true")
                     .unwrap_or(false);
                 return (Some(level_f.clamp(0.0, 1.0)), charging);

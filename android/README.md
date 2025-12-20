@@ -13,8 +13,8 @@ android/
 │   └── main/
 │       ├── java/
 │       │   └── com/
-│       │       └── ggs/
-│       │           └── GgsNode.java    # Java 包装类
+│       │       └── ggb/
+│       │           └── GgbNode.java    # Java 包装类
 │       └── res/
 └── README.md
 ```
@@ -49,10 +49,10 @@ android/
 ## 使用示例
 
 ```java
-import com.ggs.GgsNode;
+import com.ggb.GgbNode;
 
 // 创建节点实例
-GgsNode node = new GgsNode();
+GgbNode node = new GgbNode(context);
 
 // 获取设备能力
 String capabilities = node.getCapabilities();

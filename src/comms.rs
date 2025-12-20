@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use libp2p::{
     gossipsub::{
         self, Behaviour as GossipsubBehaviour, Event as GossipsubEvent, IdentTopic as Topic,
-        MessageAuthenticity, ValidationMode,
+        MessageAuthenticity, PublishError, ValidationMode,
     },
     identity,
     mdns::{self, tokio::Behaviour as Mdns, Event as MdnsEvent},
@@ -31,7 +31,7 @@ pub struct CommsConfig {
 impl Default for CommsConfig {
     fn default() -> Self {
         Self {
-            topic: "ggs-training".into(),
+            topic: "ggb-training".into(),
             listen_addr: None,
             quic_bind: Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 9234)),
             quic_bootstrap: Vec::new(),
@@ -183,11 +183,14 @@ impl CommsHandle {
 
     pub fn publish(&mut self, signed: &SignedGossip) -> Result<()> {
         let data = serde_json::to_vec(signed)?;
-        self.swarm
-            .behaviour_mut()
-            .gossipsub
-            .publish(self.topic.clone(), data)?;
-        Ok(())
+        match self.swarm.behaviour_mut().gossipsub.publish(self.topic.clone(), data) {
+            Ok(_) => Ok(()),
+            Err(PublishError::InsufficientPeers) => {
+                // 没有足够的 peer 是正常情况（节点刚启动时），静默忽略
+                Ok(())
+            }
+            Err(e) => Err(anyhow!("Gossipsub 发布失败: {:?}", e)),
+        }
     }
 
     pub fn allow_sparse_update(&self) -> bool {
@@ -195,7 +198,6 @@ impl CommsHandle {
     }
 
     pub fn allow_dense_snapshot(&self, bytes: usize) -> bool {
-        // 检查网络类型是否允许密集快照
         let network_type = *self.network_type.read();
         if !network_type.allows_dense_snapshot() {
             return false;
@@ -203,15 +205,21 @@ impl CommsHandle {
         self.bandwidth.write().allow_dense(bytes)
     }
 
-    /// 更新网络类型
     pub fn update_network_type(&self, network_type: NetworkType) {
         *self.network_type.write() = network_type;
         println!("[网络] 网络类型更新: {:?}", network_type);
     }
 
-    /// 获取当前网络类型
     pub fn network_type(&self) -> NetworkType {
         *self.network_type.read()
+    }
+
+    pub fn add_peer(&mut self, peer: &PeerId) {
+        self.swarm.behaviour_mut().gossipsub.add_explicit_peer(peer);
+    }
+
+    pub fn remove_peer(&mut self, peer: &PeerId) {
+        self.swarm.behaviour_mut().gossipsub.remove_explicit_peer(peer);
     }
 
     pub async fn broadcast_realtime(&self, signed: &SignedGossip) -> bool {
@@ -220,11 +228,19 @@ impl CommsHandle {
         }
         false
     }
+    
+    pub fn take_quic_messages(&self) -> Vec<SignedGossip> {
+        if let Some(quic) = &self.quic {
+            return quic.take_received_messages();
+        }
+        Vec::new()
+    }
 }
 
 struct QuicGateway {
     endpoint: Endpoint,
     connections: Arc<RwLock<Vec<ConnectionInfo>>>,
+    received_messages: Arc<RwLock<Vec<SignedGossip>>>,
 }
 
 struct ConnectionInfo {
@@ -256,26 +272,75 @@ impl ConnectionInfo {
     }
 }
 
+struct SkipServerVerification;
+
+impl rustls::client::ServerCertVerifier for SkipServerVerification {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::Certificate,
+        _intermediates: &[rustls::Certificate],
+        _server_name: &rustls::ServerName,
+        _scts: &mut dyn Iterator<Item = &[u8]>,
+        _ocsp_response: &[u8],
+        _now: std::time::SystemTime,
+    ) -> std::result::Result<rustls::client::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::ServerCertVerified::assertion())
+    }
+}
+
 impl QuicGateway {
     fn new(bind: SocketAddr) -> Result<Self> {
-        let cert = generate_simple_self_signed(vec!["ggs-quic".into()])?;
+        let cert = generate_simple_self_signed(vec!["ggb-quic".into()])?;
         let cert_der = cert.serialize_der()?;
         let key_der = cert.serialize_private_key_der();
+        
         let mut server_config = ServerConfig::with_single_cert(
             vec![Certificate(cert_der.clone())],
             PrivateKey(key_der.clone()),
         )?;
         server_config.transport = Arc::new(quinn::TransportConfig::default());
-        let endpoint = Endpoint::server(server_config, bind)?;
+        
+        let client_crypto = rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_custom_certificate_verifier(Arc::new(SkipServerVerification))
+            .with_no_client_auth();
+        let client_config = quinn::ClientConfig::new(Arc::new(client_crypto));
+        
+        let mut endpoint = Endpoint::server(server_config, bind)?;
+        endpoint.set_default_client_config(client_config);
         let connections = Arc::new(RwLock::new(Vec::new()));
+        let received_messages = Arc::new(RwLock::new(Vec::new()));
+        
         let accept_endpoint = endpoint.clone();
         let accept_pool = connections.clone();
+        let accept_messages = received_messages.clone();
         tokio::spawn(async move {
             loop {
                 match accept_endpoint.accept().await {
                     Some(connecting) => match connecting.await {
                         Ok(conn) => {
-                            accept_pool.write().push(ConnectionInfo::new(conn));
+                            println!("[QUIC] 接受来自 {} 的连接", conn.remote_address());
+                            accept_pool.write().push(ConnectionInfo::new(conn.clone()));
+                            let msg_queue = accept_messages.clone();
+                            let remote = conn.remote_address();
+                            tokio::spawn(async move {
+                                loop {
+                                    match conn.accept_uni().await {
+                                        Ok(mut recv) => {
+                                            match recv.read_to_end(1024 * 1024).await {
+                                                Ok(buf) => {
+                                                    if let Ok(signed) = serde_json::from_slice::<SignedGossip>(&buf) {
+                                                        println!("[QUIC] 收到消息 from {}", remote);
+                                                        msg_queue.write().push(signed);
+                                                    }
+                                                }
+                                                Err(_) => continue,
+                                            }
+                                        }
+                                        Err(_) => break,
+                                    }
+                                }
+                            });
                         }
                         Err(err) => eprintln!("[QUIC] accept error: {err:?}"),
                     },
@@ -284,7 +349,6 @@ impl QuicGateway {
             }
         });
         
-        // 启动连接健康检查任务
         let health_check_connections = connections.clone();
         tokio::spawn(async move {
             let mut health_check_interval = interval(Duration::from_secs(30));
@@ -292,11 +356,9 @@ impl QuicGateway {
                 health_check_interval.tick().await;
                 let mut conns = health_check_connections.write();
                 conns.retain_mut(|info| {
-                    // 检查连接是否仍然有效
                     if info.connection.close_reason().is_some() {
                         return false;
                     }
-                    // 如果超过 5 分钟没有成功通信，标记为失败
                     if info.last_health_check.elapsed() > Duration::from_secs(300) {
                         info.mark_failure();
                     }
@@ -304,48 +366,57 @@ impl QuicGateway {
                 });
             }
         });
+        
         Ok(Self {
             endpoint,
             connections,
+            received_messages,
         })
     }
 
     async fn connect(&self, addr: SocketAddr) -> Result<()> {
-        match self.endpoint.connect(addr, "ggs-quic") {
+        println!("[QUIC] 尝试连接到 {}", addr);
+        match self.endpoint.connect(addr, "ggb-quic") {
             Ok(connecting) => match connecting.await {
                 Ok(connection) => {
-                    self.connections
-                        .write()
-                        .push(ConnectionInfo::new(connection));
+                    println!("[QUIC] 成功连接到 {}", addr);
+                    self.connections.write().push(ConnectionInfo::new(connection.clone()));
+                    
+                    let msg_queue = self.received_messages.clone();
+                    tokio::spawn(async move {
+                        loop {
+                            match connection.accept_uni().await {
+                                Ok(mut recv) => {
+                                    match recv.read_to_end(1024 * 1024).await {
+                                        Ok(buf) => {
+                                            if let Ok(signed) = serde_json::from_slice::<SignedGossip>(&buf) {
+                                                println!("[QUIC] 收到消息 from {}", connection.remote_address());
+                                                msg_queue.write().push(signed);
+                                            }
+                                        }
+                                        Err(_) => continue,
+                                    }
+                                }
+                                Err(_) => break,
+                            }
+                        }
+                    });
                     Ok(())
                 }
-                Err(err) => Err(err.into()),
-            },
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    /// 尝试重连所有失效的连接
-    #[allow(dead_code)]
-    pub async fn reconnect_failed(&self, addrs: &[SocketAddr]) {
-        let mut conns = self.connections.write();
-        let failed_count = conns
-            .iter()
-            .filter(|info| !info.is_healthy())
-            .count();
-        
-        if failed_count > 0 {
-            println!("[QUIC] 检测到 {} 个失效连接，尝试重连", failed_count);
-            // 移除失效连接
-            conns.retain(|info| info.is_healthy());
-            
-            // 尝试重新连接
-            for addr in addrs {
-                if let Err(e) = self.connect(*addr).await {
-                    eprintln!("[QUIC] 重连失败 {}: {:?}", addr, e);
+                Err(err) => {
+                    println!("[QUIC] 连接 {} 失败: {:?}", addr, err);
+                    Err(err.into())
                 }
+            },
+            Err(err) => {
+                println!("[QUIC] 无法启动连接到 {}: {:?}", addr, err);
+                Err(err.into())
             }
         }
+    }
+    
+    fn take_received_messages(&self) -> Vec<SignedGossip> {
+        std::mem::take(&mut *self.received_messages.write())
     }
 
     async fn broadcast(&self, signed: &SignedGossip) -> bool {
@@ -354,8 +425,6 @@ impl QuicGateway {
             Err(_) => return false,
         };
         
-        // 收集连接和对应的原始索引，使用连接对象本身而不是索引
-        // 这样可以避免在向量修改后索引失效的问题
         let entries: Vec<(quinn::Connection, usize)> = {
             let guard = self.connections.read();
             guard
@@ -367,57 +436,37 @@ impl QuicGateway {
         };
         
         let mut success = false;
-        let mut failed_original_indices = Vec::new();
-        let mut success_original_indices = Vec::new();
+        let mut failed_indices = Vec::new();
         
-        // 尝试发送到所有连接
-        for (conn, original_idx) in entries {
+        for (conn, idx) in entries {
             match conn.open_uni().await {
                 Ok(mut send) => {
                     if send.write_all(&bytes).await.is_ok() && send.finish().await.is_ok() {
                         success = true;
-                        success_original_indices.push(original_idx);
                     } else {
-                        failed_original_indices.push(original_idx);
+                        failed_indices.push(idx);
                     }
                 }
                 Err(_) => {
-                    failed_original_indices.push(original_idx);
+                    failed_indices.push(idx);
                 }
             }
         }
         
-        // 原子性地更新连接状态
-        // 使用原始索引，但需要验证索引仍然有效（连接未被移除）
-        if !success_original_indices.is_empty() || !failed_original_indices.is_empty() {
+        if !failed_indices.is_empty() {
             let mut guard = self.connections.write();
             let current_len = guard.len();
-            
-            // 标记成功的连接
-            for &idx in &success_original_indices {
-                if idx < current_len {
-                    if let Some(info) = guard.get_mut(idx) {
-                        // 验证这确实是我们要标记的连接（通过检查连接是否仍然健康）
-                        if info.is_healthy() {
-                            info.mark_success();
-                        }
-                    }
-                }
-            }
-            
-            // 标记失败的连接
-            for &idx in &failed_original_indices {
+            for idx in failed_indices {
                 if idx < current_len {
                     if let Some(info) = guard.get_mut(idx) {
                         info.mark_failure();
                     }
                 }
             }
-            
-            // 移除不健康的连接（这可能会改变后续索引，但我们已经处理完了）
             guard.retain(|info| info.is_healthy());
         }
         
         success
     }
 }
+

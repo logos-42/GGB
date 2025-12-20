@@ -1,5 +1,5 @@
 #!/bin/bash
-# GGS 多节点测试脚本 (Linux/Mac)
+# GGB 多节点测试脚本 (Linux/Mac)
 # 使用方法: ./scripts/test_multi_node.sh --nodes 3 --duration 300
 
 set -e
@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo "=== GGS 多节点协同训练测试 ==="
+echo "=== GGB 多节点协同训练测试 ==="
 echo "节点数量: $NODES"
 echo "训练时长: $DURATION 秒"
 echo "模型维度: $MODEL_DIM"
@@ -64,7 +64,7 @@ for ((i=0; i<NODES; i++)); do
     echo "启动节点 $NODE_ID (设备类型: $DEVICE_TYPE)..."
     
     # 启动节点进程（后台运行）
-    GGS_DEVICE_TYPE=$DEVICE_TYPE RUST_LOG=info \
+    GGB_DEVICE_TYPE=$DEVICE_TYPE RUST_LOG=info \
         cargo run --release -- \
         --node-id $NODE_ID \
         --stats-output "$STATS_FILE" \

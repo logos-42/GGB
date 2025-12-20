@@ -1,4 +1,4 @@
-# GGS 多节点测试脚本 (PowerShell)
+# GGB 多节点测试脚本 (PowerShell)
 # 使用方法: .\scripts\test_multi_node.ps1 -Nodes 3 -Duration 300
 
 param(
@@ -8,7 +8,7 @@ param(
     [string]$OutputDir = "test_output"
 )
 
-Write-Host "=== GGS 多节点协同训练测试 ===" -ForegroundColor Green
+Write-Host "=== GGB 多节点协同训练测试 ===" -ForegroundColor Green
 Write-Host "节点数量: $Nodes"
 Write-Host "训练时长: $Duration 秒"
 Write-Host "模型维度: $ModelDim"
@@ -34,12 +34,12 @@ for ($i = 0; $i -lt $Nodes; $i++) {
     
     Write-Host "启动节点 $nodeId (设备类型: $deviceType)..." -ForegroundColor Yellow
     
-    $env:GGS_DEVICE_TYPE = $deviceType
+    $env:GGB_DEVICE_TYPE = $deviceType
     $env:RUST_LOG = "info"
     
     $job = Start-Job -ScriptBlock {
         param($nodeId, $statsFile, $logFile)
-        $env:GGS_DEVICE_TYPE = $using:deviceType
+        $env:GGB_DEVICE_TYPE = $using:deviceType
         cargo run --release -- --node-id $nodeId --stats-output $statsFile 2>&1 | Out-File -FilePath $logFile
     } -ArgumentList $nodeId, $statsFile, $logFile
     

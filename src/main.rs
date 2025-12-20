@@ -16,7 +16,7 @@ use crate::device::{DeviceCapabilities, DeviceManager};
 use crate::inference::{InferenceConfig, InferenceEngine};
 use crate::stats::TrainingStatsManager;
 use crate::topology::{TopologyConfig, TopologySelector};
-use crate::types::{GeoPoint, GgsMessage};
+use crate::types::{GeoPoint, GgbMessage};
 use anyhow::Result;
 use futures::StreamExt;
 use libp2p::swarm::SwarmEvent;
@@ -47,8 +47,9 @@ impl AppConfig {
         // 根据网络类型调整带宽预算
         let bandwidth_factor = network_type.bandwidth_factor();
         let comms = CommsConfig {
-            topic: "ggs-training".into(),
-            listen_addr: None,
+            topic: "ggb-training".into(),
+            // 使用随机可用端口监听，启用 mDNS 节点发现
+            listen_addr: Some("/ip4/0.0.0.0/tcp/0".parse().unwrap()),
             quic_bind: Some(std::net::SocketAddr::new(
                 std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
                 9234,
@@ -121,7 +122,7 @@ impl Node {
         let stats = Arc::new(TrainingStatsManager::new(model_hash.clone(), model_version));
         
         println!(
-            "启动 GGS 节点 => peer: {}, eth {}, sol {} @ ({:.2},{:.2})",
+            "启动 GGB 节点 => peer: {}, eth {}, sol {} @ ({:.2},{:.2})",
             comms.peer_id,
             crypto_suite.eth_address(),
             crypto_suite.sol_address(),
@@ -222,11 +223,19 @@ impl Node {
         self.tick_counter = self.tick_counter.wrapping_add(1);
         self.stats.increment_tick();
         
+        // 处理通过 QUIC 接收到的消息
+        let quic_messages = self.comms.take_quic_messages();
+        for signed in quic_messages {
+            if self.consensus.verify(&signed) {
+                self.handle_signed_message(signed, "QUIC".to_string()).await?;
+            }
+        }
+        
         let hash = self.inference.tensor_hash();
         let version = self.inference.tensor_snapshot().version;
         self.stats.update_model(hash.clone(), version);
         
-        let heartbeat = GgsMessage::Heartbeat {
+        let heartbeat = GgbMessage::Heartbeat {
             peer: self.comms.peer_id.to_string(),
             model_hash: hash,
         };
@@ -234,7 +243,7 @@ impl Node {
         self.stats.record_heartbeat_sent();
 
         let embedding = self.inference.embedding();
-        let probe = GgsMessage::SimilarityProbe {
+        let probe = GgbMessage::SimilarityProbe {
             embedding,
             position: self.topology.position(),
             sender: self.comms.peer_id.to_string(),
@@ -289,9 +298,19 @@ impl Node {
                 }
             }
             OutEvent::Mdns(event) => {
-                if let libp2p::mdns::Event::Discovered(peers) = event {
-                    for (peer, _addr) in peers {
-                        println!("通过 mDNS 发现节点 {peer}");
+                match event {
+                    libp2p::mdns::Event::Discovered(peers) => {
+                        for (peer, addr) in peers {
+                            println!("[mDNS] 发现节点 {} @ {}", peer, addr);
+                            // 将发现的节点添加到 gossipsub
+                            self.comms.add_peer(&peer);
+                        }
+                    }
+                    libp2p::mdns::Event::Expired(peers) => {
+                        for (peer, addr) in peers {
+                            println!("[mDNS] 节点离线 {} @ {}", peer, addr);
+                            self.comms.remove_peer(&peer);
+                        }
                     }
                 }
             }
@@ -299,7 +318,7 @@ impl Node {
         Ok(())
     }
 
-    async fn publish_signed(&mut self, payload: GgsMessage) -> Result<()> {
+    async fn publish_signed(&mut self, payload: GgbMessage) -> Result<()> {
         let signed = self.consensus.sign(payload)?;
         self.comms.publish(&signed)?;
         if !self.comms.broadcast_realtime(&signed).await {
@@ -310,12 +329,12 @@ impl Node {
 
     async fn handle_signed_message(&mut self, signed: SignedGossip, source: String) -> Result<()> {
         match &signed.payload {
-            GgsMessage::Heartbeat { peer, .. } => {
+            GgbMessage::Heartbeat { peer, .. } => {
                 self.consensus.update_stake(peer, 0.0, 0.0, 0.05);
                 self.stats.record_heartbeat_received(peer);
                 println!("收到 {} 的心跳 (via {source})", peer);
             }
-            GgsMessage::SimilarityProbe {
+            GgbMessage::SimilarityProbe {
                 embedding,
                 position,
                 sender,
@@ -344,7 +363,7 @@ impl Node {
                 if self.should_send_sparse_update(sender) {
                     if self.comms.allow_sparse_update() {
                         let update = self.inference.make_sparse_update(16);
-                        let msg = GgsMessage::SparseUpdate {
+                        let msg = GgbMessage::SparseUpdate {
                             update,
                             sender: self.comms.peer_id.to_string(),
                         };
@@ -355,13 +374,13 @@ impl Node {
                     }
                 }
             }
-            GgsMessage::SparseUpdate { sender, update } => {
+            GgbMessage::SparseUpdate { sender, update } => {
                 self.inference.apply_sparse_update(update);
                 self.consensus.update_stake(sender, 0.1, 0.0, 0.1);
                 self.stats.record_sparse_update_received(sender);
                 println!("应用来自 {} 的稀疏更新", sender);
             }
-            GgsMessage::DenseSnapshot { snapshot, sender } => {
+            GgbMessage::DenseSnapshot { snapshot, sender } => {
                 self.inference.apply_dense_snapshot(snapshot);
                 self.consensus.update_stake(sender, 0.0, 0.2, 0.05);
                 self.stats.record_dense_snapshot_received(sender);
@@ -408,7 +427,7 @@ impl Node {
         let snapshot = self.inference.tensor_snapshot();
         let bytes = snapshot.values.len() * std::mem::size_of::<f32>();
         if self.comms.allow_dense_snapshot(bytes) {
-            let msg = GgsMessage::DenseSnapshot {
+            let msg = GgbMessage::DenseSnapshot {
                 snapshot,
                 sender: self.comms.peer_id.to_string(),
             };
@@ -426,6 +445,8 @@ async fn main() -> Result<()> {
     let mut stats_output: Option<String> = None;
     let mut node_id: Option<usize> = None;
     let mut model_dim: Option<usize> = None;
+    let mut quic_port: Option<u16> = None;
+    let mut bootstrap_peers: Vec<String> = Vec::new();
     
     let mut i = 1;
     while i < args.len() {
@@ -454,7 +475,50 @@ async fn main() -> Result<()> {
                     i += 1;
                 }
             }
+            "--quic-port" => {
+                if i + 1 < args.len() {
+                    quic_port = args[i + 1].parse().ok();
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            "--bootstrap" => {
+                if i + 1 < args.len() {
+                    bootstrap_peers.push(args[i + 1].clone());
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
             _ => i += 1,
+        }
+    }
+    
+    // 如果没有通过命令行指定端口，尝试从环境变量读取
+    if quic_port.is_none() {
+        if let Ok(port_str) = std::env::var("GGB_QUIC_PORT") {
+            quic_port = port_str.parse().ok();
+        }
+    }
+    
+    // 如果指定了node-id但没有指定端口，根据node-id自动分配端口
+    if quic_port.is_none() {
+        if let Some(id) = node_id {
+            quic_port = Some(9234 + id as u16);
+        }
+    }
+    
+    // 根据 node-id 自动设置 bootstrap（连接其他节点）
+    if bootstrap_peers.is_empty() {
+        if let Some(id) = node_id {
+            // 自动连接到其他节点
+            for other_id in 0..3 {
+                if other_id != id {
+                    let port = 9234 + other_id;
+                    bootstrap_peers.push(format!("127.0.0.1:{}", port));
+                }
+            }
         }
     }
     
@@ -462,11 +526,28 @@ async fn main() -> Result<()> {
         println!("节点 ID: {}", id);
     }
     
-    // 构建配置，支持自定义模型维度
+    // 构建配置，支持自定义模型维度和端口
     let mut config = AppConfig::default();
     if let Some(dim) = model_dim {
         config.inference.model_dim = dim;
         println!("使用自定义模型维度: {}", dim);
+    }
+    if let Some(port) = quic_port {
+        config.comms.quic_bind = Some(std::net::SocketAddr::new(
+            std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+            port,
+        ));
+    }
+    
+    // 添加 bootstrap 节点
+    for peer in &bootstrap_peers {
+        if let Ok(addr) = peer.parse() {
+            config.comms.quic_bootstrap.push(addr);
+            println!("添加 Bootstrap 节点: {}", peer);
+        }
+    }
+    if let Some(port) = quic_port {
+        println!("使用 QUIC 端口: {}", port);
     }
     let node = Node::new(config).await?;
     
@@ -487,3 +568,4 @@ async fn main() -> Result<()> {
     
     node.run().await
 }
+

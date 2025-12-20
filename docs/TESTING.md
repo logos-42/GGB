@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档介绍如何测试 GGS 去中心化训练系统的各项功能。
+本文档介绍如何测试 GGB 去中心化训练系统的各项功能。
 
 ## 快速开始
 
@@ -85,8 +85,8 @@ bash scripts/test_multi_node.sh --nodes 3 --duration 300
 
 ```bash
 # 模拟低电量
-export GGS_BATTERY_LEVEL=0.15
-export GGS_BATTERY_CHARGING=false
+export GGB_BATTERY_LEVEL=0.15
+export GGB_BATTERY_CHARGING=false
 cargo run
 ```
 

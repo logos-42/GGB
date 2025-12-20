@@ -1,5 +1,5 @@
 use crate::crypto::{CryptoSuite, SignatureBundle};
-use crate::types::GgsMessage;
+use crate::types::GgbMessage;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -24,7 +24,7 @@ impl StakeRecord {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SignedGossip {
-    pub payload: GgsMessage,
+    pub payload: GgbMessage,
     pub signature: SignatureBundle,
     pub staking_score: f32,
 }
@@ -56,14 +56,14 @@ impl ConsensusEngine {
         }
     }
 
-    pub fn sign(&self, payload: GgsMessage) -> anyhow::Result<SignedGossip> {
+    pub fn sign(&self, payload: GgbMessage) -> anyhow::Result<SignedGossip> {
         let bytes = serde_json::to_vec(&payload)?;
         let signature = self.crypto.sign_bytes(&bytes)?;
         let peer_id = match &payload {
-            GgsMessage::Heartbeat { peer, .. }
-            | GgsMessage::SimilarityProbe { sender: peer, .. }
-            | GgsMessage::SparseUpdate { sender: peer, .. }
-            | GgsMessage::DenseSnapshot { sender: peer, .. } => peer.clone(),
+            GgbMessage::Heartbeat { peer, .. }
+            | GgbMessage::SimilarityProbe { sender: peer, .. }
+            | GgbMessage::SparseUpdate { sender: peer, .. }
+            | GgbMessage::DenseSnapshot { sender: peer, .. } => peer.clone(),
         };
         let staking_score = self
             .ledger
