@@ -13,6 +13,7 @@ pub mod ffi;
 pub mod inference;
 pub mod stats;
 pub mod topology;
+pub mod training;
 pub mod types;
 #[cfg(feature = "blockchain")]
 pub mod blockchain;

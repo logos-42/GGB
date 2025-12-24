@@ -55,6 +55,10 @@ pub struct InferenceEngine {
 
 impl InferenceEngine {
     pub fn new(config: InferenceConfig) -> Result<Self>;
+    pub fn with_training_data(
+        config: InferenceConfig,
+        training_data: Option<Box<dyn TrainingData>>,
+    ) -> Result<Self>;
     pub fn model_dim(&self) -> usize;
     pub fn embedding(&self) -> Vec<f32>;
     pub fn tensor_snapshot(&self) -> TensorSnapshot;
@@ -65,6 +69,12 @@ impl InferenceEngine {
     pub fn local_train_step(&self);
     pub fn convergence_score(&self) -> f32;
     pub fn validate_model_file(path: &Path, expected_dim: Option<usize>) -> Result<()>;
+    
+    // Checkpoint 相关方法
+    pub fn save_checkpoint(&self, path: &Path) -> Result<()>;
+    pub fn save_checkpoint_structured(&self, base_path: &Path) -> Result<()>;
+    pub fn load_checkpoint(&self, path: &Path) -> Result<()>;
+    pub fn find_latest_checkpoint(checkpoint_dir: &Path) -> Result<Option<PathBuf>>;
 }
 ```
 
@@ -129,6 +139,56 @@ impl BaseNetworkClient {
     pub async fn query_stake(&self, contract_address: &str, user_address: &str) -> Result<f64>;
 }
 ```
+
+### 训练模块 (`training`)
+
+#### `TrainingData`
+
+训练数据接口。
+
+```rust
+pub trait TrainingData: Send + Sync {
+    fn next_sample(&mut self) -> Option<(Array1<f32>, Array1<f32>)>;
+    fn next_batch(&mut self, batch_size: usize) -> Vec<(Array1<f32>, Array1<f32>)>;
+    fn reset(&mut self);
+    fn input_dim(&self) -> usize;
+    fn output_dim(&self) -> usize;
+}
+```
+
+实现：
+- `SyntheticData`: 合成数据生成器（用于测试）
+- `ArrayData`: 从数组加载数据
+
+#### `LossFunction`
+
+损失函数接口。
+
+```rust
+pub trait LossFunction: Send + Sync {
+    fn compute(&self, predicted: &Array1<f32>, target: &Array1<f32>) -> f32;
+    fn gradient(&self, predicted: &Array1<f32>, target: &Array1<f32>) -> Array1<f32>;
+}
+```
+
+实现：
+- `MSE`: 均方误差
+- `CrossEntropy`: 交叉熵损失
+- `MAE`: 平均绝对误差
+
+#### `Optimizer`
+
+优化器接口。
+
+```rust
+pub trait Optimizer: Send + Sync {
+    fn update(&mut self, params: &mut Array1<f32>, gradients: &Array1<f32>);
+    fn reset(&mut self);
+}
+```
+
+实现：
+- `SGD`: 随机梯度下降（支持学习率和动量）
 
 ## FFI 接口
 
@@ -213,8 +273,17 @@ pub struct CommsConfig {
 pub struct InferenceConfig {
     pub model_dim: usize,
     pub model_path: Option<PathBuf>,
+    pub checkpoint_dir: Option<PathBuf>,
+    pub learning_rate: f32,
+    pub use_training: bool,
 }
 ```
+
+- `model_dim`: 模型维度（参数数量）
+- `model_path`: 初始模型文件路径（.npy 格式，也支持 .pt/.pth 但需要先转换）
+- `checkpoint_dir`: Checkpoint 保存目录
+- `learning_rate`: 训练学习率（默认 0.001）
+- `use_training`: 是否启用真实训练模式（默认 false）
 
 ### `TopologyConfig`
 

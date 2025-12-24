@@ -117,11 +117,62 @@ iOS 集成代码位于 `ios/` 目录，包含：
 
 详细说明请参考 [ios/README.md](ios/README.md)
 
+## 模型管理
+
+### 模型持久化
+
+系统支持自动保存和加载模型 checkpoint：
+
+```bash
+# 设置 checkpoint 目录
+export GGB_CHECKPOINT_DIR=./checkpoints
+cargo run
+```
+
+系统会：
+- 启动时自动加载最新的 checkpoint（如果存在）
+- 每 100 个训练 tick 自动保存 checkpoint
+- Checkpoint 包含模型参数（.npy）和元数据（.json）
+
+### PyTorch 模型转换
+
+如果您的模型使用 PyTorch 训练，可以使用转换工具将其转换为 GGB 支持的格式：
+
+```bash
+# 转换 PyTorch 模型为 .npy 格式
+python tools/convert_pytorch_model.py model.pt model.npy
+
+# 然后在运行时指定模型路径
+cargo run -- --model-path model.npy --model-dim 512
+```
+
+转换工具支持：
+- `state_dict` 格式（仅参数）
+- 完整模型格式（包含模型结构）
+- 自动扁平化多层参数为单一向量
+
+### 训练配置
+
+系统支持真实的梯度下降训练（可选）：
+
+```bash
+# 启用训练模式
+export GGB_USE_TRAINING=true
+export GGB_LEARNING_RATE=0.001
+cargo run
+```
+
+**注意**：当前实现使用简化的线性模型进行训练。对于复杂的神经网络模型，建议：
+1. 使用转换工具将 PyTorch 模型转换为 .npy
+2. 在 Python 端训练模型
+3. 定期将更新后的参数导出为 .npy 供 GGB 使用
+
 ## 自定义与扩展
 
 - 在 `Cargo.toml` 中加入所需的推理库（如 Candle、ONNX Runtime）后，扩展 `InferenceEngine` 的加载逻辑即可。
 - 若要使用实际的链上 RPC，可在 `ConsensusEngine` 中替换当前内存 staking 账本。
 - 通过 `TopologyConfig` 的参数可调邻居数量、备份池大小、地理缩放等策略。
+- 通过 `InferenceConfig` 配置训练参数、checkpoint 目录等。
 
 ## 目录结构
 
@@ -135,11 +186,17 @@ iOS 集成代码位于 `ios/` 目录，包含：
 │   ├── crypto.rs        # ETH/SOL 密钥管理
 │   ├── device.rs        # 设备能力检测与自适应配置 🆕
 │   ├── stats.rs         # 训练统计与监控 🆕
+│   ├── training/        # 训练模块 🆕
+│   │   ├── mod.rs       # 模块导出
+│   │   ├── data.rs      # 训练数据接口
+│   │   ├── loss.rs      # 损失函数（MSE, CrossEntropy, MAE）
+│   │   └── optimizer.rs # 优化器（SGD）
 │   └── ffi.rs           # FFI 接口（移动端集成）🆕
 ├── examples/
 │   └── multi_node_test.rs  # 多节点测试工具 🆕
 ├── tools/
-│   └── analyze_training.rs  # 训练结果分析工具 🆕
+│   ├── analyze_training.rs  # 训练结果分析工具 🆕
+│   └── convert_pytorch_model.py  # PyTorch 模型转换工具 🆕
 ├── scripts/
 │   └── test_multi_node.ps1  # Windows 测试脚本 🆕
 ├── android/              # Android 集成代码 🆕

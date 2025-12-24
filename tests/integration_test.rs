@@ -5,7 +5,7 @@ use GGB::{
     consensus::ConsensusConfig,
     crypto::CryptoConfig,
     device::{DeviceCapabilities, DeviceManager, DeviceType},
-    inference::InferenceConfig,
+    inference::{InferenceConfig, InferenceEngine, LossType},
     topology::TopologyConfig,
     types::GeoPoint,
 };
@@ -31,6 +31,10 @@ fn create_test_config(node_id: usize) -> (CommsConfig, InferenceConfig, Topology
     let inference = InferenceConfig {
         model_dim: 128,
         model_path: None,
+        checkpoint_dir: None,
+        learning_rate: 0.001,
+        use_training: false,
+        loss_type: LossType::MSE,
     };
     
     let topology = TopologyConfig {
@@ -42,6 +46,84 @@ fn create_test_config(node_id: usize) -> (CommsConfig, InferenceConfig, Topology
     };
     
     (comms, inference, topology)
+}
+
+#[test]
+fn test_loss_functions() {
+    use ndarray::Array1;
+    
+    // 测试不同的损失函数类型
+    let configs = vec![
+        (LossType::MSE, "MSE"),
+        (LossType::CrossEntropy, "CrossEntropy"),
+        (LossType::MAE, "MAE"),
+    ];
+    
+    for (loss_type, name) in configs {
+        let config = InferenceConfig {
+            model_dim: 64,
+            model_path: None,
+            checkpoint_dir: None,
+            learning_rate: 0.001,
+            use_training: false,
+            loss_type: loss_type.clone(),
+        };
+        
+        let engine = InferenceEngine::new(config).unwrap();
+        assert_eq!(engine.model_dim(), 64, "{} loss function test", name);
+    }
+}
+
+#[test]
+fn test_synthetic_data() {
+    let config = InferenceConfig {
+        model_dim: 128,
+        model_path: None,
+        checkpoint_dir: None,
+        learning_rate: 0.001,
+        use_training: true,
+        loss_type: LossType::MSE,
+    };
+    
+    // 测试使用合成数据创建引擎
+    let engine = InferenceEngine::with_synthetic_data(config, 12345).unwrap();
+    assert_eq!(engine.model_dim(), 128);
+    
+    // 执行一些训练步骤
+    for _ in 0..5 {
+        engine.local_train_step();
+    }
+}
+
+#[test]
+fn test_array_data() {
+    use ndarray::Array1;
+    
+    let config = InferenceConfig {
+        model_dim: 64,
+        model_path: None,
+        checkpoint_dir: None,
+        learning_rate: 0.001,
+        use_training: true,
+        loss_type: LossType::MSE,
+    };
+    
+    // 创建测试数据
+    let inputs: Vec<Array1<f32>> = (0..10)
+        .map(|i| Array1::from_vec(vec![i as f32; 64]))
+        .collect();
+    let outputs: Vec<Array1<f32>> = (0..10)
+        .map(|i| Array1::from_vec(vec![i as f32 * 2.0]))
+        .collect();
+    
+    // 测试使用数组数据创建引擎
+    let engine = InferenceEngine::with_array_data(config, inputs, outputs).unwrap();
+    assert_eq!(engine.model_dim(), 64);
+    
+    // 执行一些训练步骤
+    for _ in 0..3 {
+        engine.local_train_step();
+    }
 }
 
 #[tokio::test]
@@ -256,4 +338,182 @@ async fn test_dht_bootstrap_loading() {
     
     // 清理
     fs::remove_file(&test_file).unwrap();
+}
+
+#[test]
+fn test_loss_functions() {
+    use ndarray::Array1;
+    
+    // 测试不同的损失函数类型
+    let configs = vec![
+        (LossType::MSE, "MSE"),
+        (LossType::CrossEntropy, "CrossEntropy"),
+        (LossType::MAE, "MAE"),
+    ];
+    
+    for (loss_type, name) in configs {
+        let config = InferenceConfig {
+            model_dim: 64,
+            model_path: None,
+            checkpoint_dir: None,
+            learning_rate: 0.001,
+            use_training: false,
+            loss_type: loss_type.clone(),
+        };
+        
+        let engine = InferenceEngine::new(config).unwrap();
+        assert_eq!(engine.model_dim(), 64, "{} loss function test", name);
+    }
+}
+
+#[test]
+fn test_synthetic_data() {
+    use GGB::training::SyntheticData;
+    
+    let config = InferenceConfig {
+        model_dim: 128,
+        model_path: None,
+        checkpoint_dir: None,
+        learning_rate: 0.001,
+        use_training: true,
+        loss_type: LossType::MSE,
+    };
+    
+    // 测试直接创建 SyntheticData 并验证方法被使用
+    let mut synthetic = SyntheticData::new(128, 1, 12345);
+    synthetic = synthetic.with_noise_scale(0.02);
+    assert_eq!(synthetic.input_dim(), 128);
+    assert_eq!(synthetic.output_dim(), 1);
+    
+    // 测试获取样本
+    let sample = synthetic.next_sample();
+    assert!(sample.is_some());
+    
+    // 测试使用合成数据创建引擎
+    let engine = InferenceEngine::with_synthetic_data(config, 12345).unwrap();
+    assert_eq!(engine.model_dim(), 128);
+    
+    // 执行一些训练步骤
+    for _ in 0..5 {
+        engine.local_train_step();
+    }
+}
+
+#[test]
+fn test_array_data() {
+    use ndarray::Array1;
+    use GGB::training::ArrayData;
+    
+    let config = InferenceConfig {
+        model_dim: 64,
+        model_path: None,
+        checkpoint_dir: None,
+        learning_rate: 0.001,
+        use_training: true,
+        loss_type: LossType::MSE,
+    };
+    
+    // 创建测试数据
+    let inputs: Vec<Array1<f32>> = (0..10)
+        .map(|i| Array1::from_vec(vec![i as f32; 64]))
+        .collect();
+    let outputs: Vec<Array1<f32>> = (0..10)
+        .map(|i| Array1::from_vec(vec![i as f32 * 2.0]))
+        .collect();
+    
+    // 测试使用数组数据创建引擎
+    let engine = InferenceEngine::with_array_data(config.clone(), inputs.clone(), outputs.clone()).unwrap();
+    assert_eq!(engine.model_dim(), 64);
+    
+    // 测试直接创建 ArrayData 并验证字段被使用
+    let mut array_data = ArrayData::new(inputs, outputs).unwrap();
+    assert_eq!(array_data.input_dim(), 64);
+    assert_eq!(array_data.output_dim(), 1);
+    
+    // 测试 next_batch 方法
+    let batch = array_data.next_batch(5);
+    assert_eq!(batch.len(), 5);
+    
+    // 执行一些训练步骤
+    for _ in 0..3 {
+        engine.local_train_step();
+    }
+}
+
+#[test]
+fn test_loss_functions() {
+    use ndarray::Array1;
+    
+    // 测试不同的损失函数类型
+    let configs = vec![
+        (LossType::MSE, "MSE"),
+        (LossType::CrossEntropy, "CrossEntropy"),
+        (LossType::MAE, "MAE"),
+    ];
+    
+    for (loss_type, name) in configs {
+        let config = InferenceConfig {
+            model_dim: 64,
+            model_path: None,
+            checkpoint_dir: None,
+            learning_rate: 0.001,
+            use_training: false,
+            loss_type: loss_type.clone(),
+        };
+        
+        let engine = InferenceEngine::new(config).unwrap();
+        assert_eq!(engine.model_dim(), 64, "{} loss function test", name);
+    }
+}
+
+#[test]
+fn test_synthetic_data() {
+    let config = InferenceConfig {
+        model_dim: 128,
+        model_path: None,
+        checkpoint_dir: None,
+        learning_rate: 0.001,
+        use_training: true,
+        loss_type: LossType::MSE,
+    };
+    
+    // 测试使用合成数据创建引擎
+    let engine = InferenceEngine::with_synthetic_data(config, 12345).unwrap();
+    assert_eq!(engine.model_dim(), 128);
+    
+    // 执行一些训练步骤
+    for _ in 0..5 {
+        engine.local_train_step();
+    }
+}
+
+#[test]
+fn test_array_data() {
+    use ndarray::Array1;
+    
+    let config = InferenceConfig {
+        model_dim: 64,
+        model_path: None,
+        checkpoint_dir: None,
+        learning_rate: 0.001,
+        use_training: true,
+        loss_type: LossType::MSE,
+    };
+    
+    // 创建测试数据
+    let inputs: Vec<Array1<f32>> = (0..10)
+        .map(|i| Array1::from_vec(vec![i as f32; 64]))
+        .collect();
+    let outputs: Vec<Array1<f32>> = (0..10)
+        .map(|i| Array1::from_vec(vec![i as f32 * 2.0]))
+        .collect();
+    
+    // 测试使用数组数据创建引擎
+    let engine = InferenceEngine::with_array_data(config, inputs, outputs).unwrap();
+    assert_eq!(engine.model_dim(), 64);
+    
+    // 执行一些训练步骤
+    for _ in 0..3 {
+        engine.local_train_step();
+    }
 }

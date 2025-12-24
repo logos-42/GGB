@@ -1,17 +1,45 @@
 use crate::types::{decompress_indices, SparseUpdate, TensorSnapshot};
+use crate::training::{TrainingData, LossFunction, Optimizer, MSE, SGD, CrossEntropy, MAE, SyntheticData, ArrayData};
 use anyhow::{anyhow, Result};
 use ndarray::Array1;
-use ndarray_npy::ReadNpyExt;
+use ndarray_npy::{ReadNpyExt, WriteNpyExt};
 use parking_lot::RwLock;
 use rand::Rng;
-use std::fs::File;
+use serde::{Deserialize, Serialize};
+use std::fs::{File, create_dir_all};
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// 损失函数类型
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LossType {
+    MSE,
+    CrossEntropy,
+    MAE,
+}
 
 #[derive(Clone)]
 pub struct InferenceConfig {
     pub model_dim: usize,
     pub model_path: Option<PathBuf>,
+    pub checkpoint_dir: Option<PathBuf>,
+    // 训练配置
+    pub learning_rate: f32,
+    pub use_training: bool,
+    pub loss_type: LossType,
+}
+
+
+/// Checkpoint 元数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CheckpointMetadata {
+    pub version: u64,
+    pub model_dim: usize,
+    pub timestamp: u64,
+    pub model_hash: String,
+    pub convergence_score: f32,
 }
 
 impl Default for InferenceConfig {
@@ -19,6 +47,10 @@ impl Default for InferenceConfig {
         Self {
             model_dim: 256,
             model_path: None,
+            checkpoint_dir: None,
+            learning_rate: 0.001,
+            use_training: false,
+            loss_type: LossType::MSE,
         }
     }
 }
@@ -28,6 +60,9 @@ pub struct InferenceEngine {
     state: Arc<RwLock<ModelState>>,
     config: InferenceConfig,
     memory_pressure: Arc<RwLock<MemoryPressure>>,
+    optimizer: Arc<RwLock<Box<dyn Optimizer>>>,
+    loss_fn: Arc<Box<dyn LossFunction>>,
+    training_data: Option<Arc<parking_lot::Mutex<Box<dyn TrainingData>>>>,
 }
 
 struct MemoryPressure {
@@ -46,11 +81,55 @@ struct ModelState {
 
 impl InferenceEngine {
     pub fn new(config: InferenceConfig) -> Result<Self> {
+        Self::with_training_data(config, None)
+    }
+    
+    /// 使用合成数据创建 InferenceEngine（用于测试和演示）
+    pub fn with_synthetic_data(
+        config: InferenceConfig,
+        seed: u64,
+    ) -> Result<Self> {
+        let training_data: Box<dyn TrainingData> = Box::new(
+            SyntheticData::new(config.model_dim, 1, seed)
+        );
+        Self::with_training_data(config, Some(training_data))
+    }
+    
+    /// 使用数组数据创建 InferenceEngine
+    pub fn with_array_data(
+        config: InferenceConfig,
+        inputs: Vec<Array1<f32>>,
+        outputs: Vec<Array1<f32>>,
+    ) -> Result<Self> {
+        let training_data: Box<dyn TrainingData> = Box::new(
+            ArrayData::new(inputs, outputs)?
+        );
+        Self::with_training_data(config, Some(training_data))
+    }
+    
+    /// 使用训练数据创建 InferenceEngine
+    pub fn with_training_data(
+        config: InferenceConfig,
+        training_data: Option<Box<dyn TrainingData>>,
+    ) -> Result<Self> {
         let params = load_or_random(config.model_dim, config.model_path.as_deref())?;
         let residual = Array1::<f32>::zeros(params.len());
         
         // 估算内存使用：参数 + residual，每个 f32 4 字节
         let estimated_mb = (params.len() * 2 * 4) / (1024 * 1024);
+        
+        // 创建优化器
+        let optimizer: Box<dyn Optimizer> = Box::new(SGD::new(config.learning_rate));
+        
+        // 根据配置创建损失函数
+        let loss_fn: Box<dyn LossFunction> = match config.loss_type {
+            LossType::MSE => Box::new(MSE),
+            LossType::CrossEntropy => Box::new(CrossEntropy),
+            LossType::MAE => Box::new(MAE),
+        };
+        
+        // 包装训练数据
+        let training_data_wrapped = training_data.map(|d| Arc::new(parking_lot::Mutex::new(d)));
         
         Ok(Self {
             state: Arc::new(RwLock::new(ModelState {
@@ -65,6 +144,9 @@ impl InferenceEngine {
                 current_usage_mb: estimated_mb,
                 pressure_threshold_mb: estimated_mb * 2, // 阈值设为当前使用的 2 倍
             })),
+            optimizer: Arc::new(RwLock::new(optimizer)),
+            loss_fn: Arc::new(loss_fn),
+            training_data: training_data_wrapped,
         })
     }
 
@@ -207,7 +289,116 @@ impl InferenceEngine {
         }
     }
 
+    /// 计算梯度（数值梯度方法）
+    /// 
+    /// 使用有限差分法计算梯度，适用于简单模型
+    fn compute_gradient_numerical(
+        &self,
+        input: &Array1<f32>,
+        target: &Array1<f32>,
+        epsilon: f32,
+    ) -> Array1<f32> {
+        let state = self.state.read();
+        let params = &state.params;
+        let mut gradients = Array1::<f32>::zeros(params.len());
+        
+        // 计算当前损失
+        let current_output = self.forward_simple(input);
+        let current_loss = self.loss_fn.compute(&current_output, target);
+        
+        // 对每个参数计算数值梯度
+        for i in 0..params.len() {
+            // 创建扰动后的参数
+            let mut perturbed_params = params.clone();
+            perturbed_params[i] += epsilon;
+            
+            // 使用扰动后的参数计算输出
+            let perturbed_output = self.forward_with_params(input, &perturbed_params);
+            let perturbed_loss = self.loss_fn.compute(&perturbed_output, target);
+            
+            // 数值梯度: (f(x + eps) - f(x)) / eps
+            gradients[i] = (perturbed_loss - current_loss) / epsilon;
+        }
+        
+        gradients
+    }
+    
+    /// 简单前向传播（使用当前参数）
+    fn forward_simple(&self, input: &Array1<f32>) -> Array1<f32> {
+        let state = self.state.read();
+        self.forward_with_params(input, &state.params)
+    }
+    
+    /// 使用指定参数进行前向传播
+    /// 
+    /// 这是一个简化的线性模型: output = params * input（点积）
+    /// 对于更复杂的模型，需要根据实际架构实现
+    fn forward_with_params(&self, input: &Array1<f32>, params: &Array1<f32>) -> Array1<f32> {
+        // 简化实现：假设模型是线性变换
+        // 如果 input_dim == model_dim，则 output = params * input（逐元素乘积后求和）
+        // 如果 input_dim != model_dim，则使用点积
+        
+        if input.len() == params.len() {
+            // 逐元素乘积后求和，返回标量（包装为数组）
+            let output: f32 = input.iter()
+                .zip(params.iter())
+                .map(|(x, p)| x * p)
+                .sum();
+            Array1::from_vec(vec![output])
+        } else {
+            // 如果维度不匹配，返回参数的一部分作为输出
+            let output_dim = (params.len() / input.len().max(1)).min(params.len());
+            Array1::from_vec(params.iter().take(output_dim).cloned().collect())
+        }
+    }
+    
+    /// 计算梯度（使用损失函数的解析梯度）
+    fn compute_gradient_analytical(
+        &self,
+        input: &Array1<f32>,
+        target: &Array1<f32>,
+    ) -> Array1<f32> {
+        // 前向传播
+        let output = self.forward_simple(input);
+        
+        // 计算损失对输出的梯度
+        let output_grad = self.loss_fn.gradient(&output, target);
+        
+        // 对于简单的线性模型，梯度是 input * output_grad
+        // 这里简化处理：假设模型是 output = sum(params * input)
+        let state = self.state.read();
+        let mut param_grad = Array1::<f32>::zeros(state.params.len());
+        
+        if input.len() == state.params.len() {
+            // 对于逐元素乘积模型，梯度是 input * output_grad[0]
+            let scale = output_grad[0];
+            for i in 0..param_grad.len() {
+                param_grad[i] = input[i] * scale;
+            }
+        } else {
+            // 简化：将 output_grad 分散到参数上
+            for i in 0..param_grad.len().min(output_grad.len()) {
+                param_grad[i] = output_grad[i];
+            }
+        }
+        
+        param_grad
+    }
+    
     pub fn local_train_step(&self) {
+        // 如果启用了训练且有训练数据，使用真实训练
+        if self.config.use_training {
+            if let Some(ref training_data) = self.training_data {
+                let mut data = training_data.lock();
+                if let Some((input, target)) = data.next_sample() {
+                    // 使用真实训练逻辑
+                    self.train_step_with_data(&input, &target);
+                    return;
+                }
+            }
+        }
+        
+        // Fallback: 如果没有训练数据，使用随机扰动（保持向后兼容）
         let mut rng = rand::thread_rng();
         let mut state = self.state.write();
         
@@ -220,7 +411,42 @@ impl InferenceEngine {
         state.version = state.version.saturating_add(1);
         
         // 更新 hash 历史（保留最近 10 个）
+        drop(state);
         let hash = self.tensor_hash();
+        let mut state = self.state.write();
+        state.hash_history.push(hash);
+        if state.hash_history.len() > 10 {
+            state.hash_history.remove(0);
+        }
+    }
+    
+    /// 使用训练数据进行一步训练
+    fn train_step_with_data(&self, input: &Array1<f32>, target: &Array1<f32>) {
+        // 计算梯度（优先使用解析梯度，否则使用数值梯度）
+        let gradients = if input.len() == self.state.read().params.len() {
+            // 如果维度匹配，使用解析梯度（更快）
+            self.compute_gradient_analytical(input, target)
+        } else {
+            // 否则使用数值梯度（更通用但更慢）
+            self.compute_gradient_numerical(input, target, 1e-5)
+        };
+        
+        // 更新参数
+        let mut state = self.state.write();
+        
+        // 保存当前参数用于收敛度计算
+        state.previous_params = Some(state.params.clone());
+        
+        // 使用优化器更新参数
+        let mut optimizer = self.optimizer.write();
+        optimizer.update(&mut state.params, &gradients);
+        
+        state.version = state.version.saturating_add(1);
+        
+        // 更新 hash 历史
+        drop(state);
+        let hash = self.tensor_hash();
+        let mut state = self.state.write();
         state.hash_history.push(hash);
         if state.hash_history.len() > 10 {
             state.hash_history.remove(0);
@@ -318,6 +544,179 @@ impl InferenceEngine {
             .sum::<f32>() / state.params.len() as f32;
         variance.sqrt()
     }
+
+    /// 保存 checkpoint 为 .npy 格式
+    #[allow(dead_code)]
+    pub fn save_checkpoint(&self, path: &Path) -> Result<()> {
+        let state = self.state.read();
+        
+        // 确保目录存在
+        if let Some(parent) = path.parent() {
+            create_dir_all(parent)?;
+        }
+        
+        let file = File::create(path)?;
+        let mut writer = BufWriter::new(file);
+        state.params.write_npy(&mut writer)?;
+        
+        Ok(())
+    }
+
+    /// 保存结构化 checkpoint（JSON 元数据 + .npy 参数）
+    pub fn save_checkpoint_structured(&self, base_path: &Path) -> Result<()> {
+        let state = self.state.read();
+        
+        // 确保目录存在
+        if let Some(parent) = base_path.parent() {
+            create_dir_all(parent)?;
+        }
+        
+        // 获取时间戳
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        // 生成文件路径
+        let params_path = base_path.with_extension("npy");
+        let metadata_path = base_path.with_extension("json");
+        
+        // 保存参数文件
+        let file = File::create(&params_path)?;
+        let mut writer = BufWriter::new(file);
+        state.params.write_npy(&mut writer)?;
+        
+        // 计算模型 hash
+        let snapshot = TensorSnapshot::new(state.params.to_vec(), state.version);
+        let model_hash = snapshot.hash();
+        
+        // 计算收敛度
+        drop(state);
+        let convergence_score = self.convergence_score();
+        let state = self.state.read();
+        
+        // 创建元数据
+        let metadata = CheckpointMetadata {
+            version: state.version,
+            model_dim: state.params.len(),
+            timestamp,
+            model_hash,
+            convergence_score,
+        };
+        
+        // 保存元数据
+        let metadata_json = serde_json::to_string_pretty(&metadata)?;
+        std::fs::write(&metadata_path, metadata_json)?;
+        
+        Ok(())
+    }
+
+    /// 加载 checkpoint（自动检测格式）
+    pub fn load_checkpoint(&self, path: &Path) -> Result<()> {
+        // 检查是否存在结构化 checkpoint（.json 文件）
+        let json_path = path.with_extension("json");
+        let npy_path = if json_path.exists() {
+            path.with_extension("npy")
+        } else {
+            path.to_path_buf()
+        };
+        
+        if !npy_path.exists() {
+            return Err(anyhow!("Checkpoint 文件不存在: {:?}", npy_path));
+        }
+        
+        // 加载参数
+        let file = File::open(&npy_path)?;
+        let params: Array1<f32> = Array1::read_npy(file)?;
+        
+        // 验证维度
+        if params.len() != self.config.model_dim {
+            return Err(anyhow!(
+                "Checkpoint 维度不匹配: 期望 {}, 实际 {}",
+                self.config.model_dim,
+                params.len()
+            ));
+        }
+        
+        // 如果存在元数据，读取版本信息
+        let version = if json_path.exists() {
+            let metadata_json = std::fs::read_to_string(&json_path)?;
+            let metadata: CheckpointMetadata = serde_json::from_str(&metadata_json)?;
+            metadata.version
+        } else {
+            // 如果没有元数据，使用当前版本 + 1
+            self.state.read().version + 1
+        };
+        
+        // 更新模型状态
+        let mut state = self.state.write();
+        state.previous_params = Some(state.params.clone());
+        state.params = params.clone();
+        state.residual = Array1::<f32>::zeros(params.len());
+        state.version = version;
+        
+        // 更新 hash 历史
+        drop(state);
+        let hash = self.tensor_hash();
+        let mut state = self.state.write();
+        state.hash_history.push(hash);
+        if state.hash_history.len() > 10 {
+            state.hash_history.remove(0);
+        }
+        
+        Ok(())
+    }
+
+    /// 查找最新的 checkpoint
+    pub fn find_latest_checkpoint(checkpoint_dir: &Path) -> Result<Option<PathBuf>> {
+        if !checkpoint_dir.exists() {
+            return Ok(None);
+        }
+        
+        let mut latest: Option<(u64, PathBuf)> = None;
+        
+        // 遍历目录查找所有 .json 文件（结构化 checkpoint）
+        for entry in std::fs::read_dir(checkpoint_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                // 读取元数据获取时间戳
+                if let Ok(metadata_json) = std::fs::read_to_string(&path) {
+                    if let Ok(metadata) = serde_json::from_str::<CheckpointMetadata>(&metadata_json) {
+                        let base_path = path.with_extension("");
+                        if let Some((latest_ts, _)) = latest {
+                            if metadata.timestamp > latest_ts {
+                                latest = Some((metadata.timestamp, base_path));
+                            }
+                        } else {
+                            latest = Some((metadata.timestamp, base_path));
+                        }
+                    }
+                }
+            } else if path.extension().and_then(|s| s.to_str()) == Some("npy") {
+                // 对于简单的 .npy 文件，使用文件修改时间
+                if let Ok(metadata) = entry.metadata() {
+                    if let Ok(modified) = metadata.modified() {
+                        let timestamp = modified
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs();
+                        let base_path = path.with_extension("");
+                        if let Some((latest_ts, _)) = latest {
+                            if timestamp > latest_ts {
+                                latest = Some((timestamp, base_path));
+                            }
+                        } else {
+                            latest = Some((timestamp, base_path));
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(latest.map(|(_, path)| path))
+    }
 }
 
 /// 验证模型文件
@@ -327,8 +726,29 @@ pub fn validate_model_file(path: &Path, expected_dim: Option<usize>) -> Result<(
     }
     
     // 检查文件扩展名
-    if path.extension().and_then(|s| s.to_str()) != Some("npy") {
-        return Err(anyhow!("模型文件必须是 .npy 格式"));
+    let ext = path.extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    
+    match ext.as_str() {
+        "npy" => {
+            // .npy 格式，直接验证
+        }
+        "pt" | "pth" => {
+            // PyTorch 格式，提示用户使用转换工具
+            return Err(anyhow!(
+                "PyTorch 模型文件 (.pt/.pth) 需要先转换为 .npy 格式。\n\
+                请使用转换工具: python tools/convert_pytorch_model.py {:?} <output.npy>",
+                path
+            ));
+        }
+        _ => {
+            return Err(anyhow!(
+                "不支持的模型文件格式: {}。支持格式: .npy, .pt, .pth",
+                ext
+            ));
+        }
     }
     
     // 尝试加载文件
@@ -369,22 +789,47 @@ pub fn validate_model_file(path: &Path, expected_dim: Option<usize>) -> Result<(
 fn load_or_random(dim: usize, path: Option<&Path>) -> Result<Array1<f32>> {
     if let Some(path) = path {
         if path.exists() {
-            // 验证模型文件
-            validate_model_file(path, Some(dim))?;
+            // 检查文件扩展名
+            let ext = path.extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_lowercase();
             
-            let file = File::open(path)?;
-            let arr: Array1<f32> = Array1::read_npy(file)?;
-            
-            // 再次检查维度（双重验证）
-            if arr.len() != dim {
-                return Err(anyhow!(
-                    "模型维度不匹配: 配置 {}, 文件 {}",
-                    dim,
-                    arr.len()
-                ));
+            match ext.as_str() {
+                "npy" => {
+                    // .npy 格式，直接加载
+                    validate_model_file(path, Some(dim))?;
+                    
+                    let file = File::open(path)?;
+                    let arr: Array1<f32> = Array1::read_npy(file)?;
+                    
+                    // 再次检查维度（双重验证）
+                    if arr.len() != dim {
+                        return Err(anyhow!(
+                            "模型维度不匹配: 配置 {}, 文件 {}",
+                            dim,
+                            arr.len()
+                        ));
+                    }
+                    
+                    return Ok(arr);
+                }
+                "pt" | "pth" => {
+                    // PyTorch 格式，提示用户使用转换工具
+                    return Err(anyhow!(
+                        "PyTorch 模型文件 (.pt/.pth) 需要先转换为 .npy 格式。\n\
+                        请使用转换工具: python tools/convert_pytorch_model.py {:?} <output.npy>\n\
+                        然后使用转换后的 .npy 文件作为 model_path。",
+                        path
+                    ));
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "不支持的模型文件格式: {}。支持格式: .npy, .pt, .pth",
+                        ext
+                    ));
+                }
             }
-            
-            return Ok(arr);
         } else {
             return Err(anyhow!("model file {:?} not found", path));
         }

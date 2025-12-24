@@ -7,6 +7,7 @@ mod ffi;
 mod inference;
 mod stats;
 mod topology;
+mod training;
 mod types;
 
 use crate::comms::{CommsConfig, CommsHandle, OutEvent};
@@ -21,6 +22,7 @@ use anyhow::Result;
 use futures::StreamExt;
 use libp2p::kad::KademliaEvent;
 use libp2p::swarm::SwarmEvent;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 
@@ -47,9 +49,33 @@ impl AppConfig {
         let network_type = capabilities.network_type;
 
         // 根据设备能力调整推理配置
+        // 支持通过环境变量选择损失函数类型
+        let loss_type = if let Ok(loss_env) = std::env::var("GGB_LOSS_TYPE") {
+            match loss_env.to_uppercase().as_str() {
+                "CROSSENTROPY" | "CE" => {
+                    println!("[配置] 使用交叉熵损失函数");
+                    crate::inference::LossType::CrossEntropy
+                }
+                "MAE" => {
+                    println!("[配置] 使用平均绝对误差损失函数");
+                    crate::inference::LossType::MAE
+                }
+                "MSE" | _ => {
+                    println!("[配置] 使用均方误差损失函数（默认）");
+                    crate::inference::LossType::MSE
+                }
+            }
+        } else {
+            crate::inference::LossType::MSE
+        };
+        
         let inference = InferenceConfig {
             model_dim,
             model_path: None,
+            checkpoint_dir: None,
+            learning_rate: 0.001,
+            use_training: false,
+            loss_type,
         };
 
         // 根据网络类型调整带宽预算
@@ -136,6 +162,8 @@ struct Node {
     device_manager: DeviceManager,
     stats: Arc<TrainingStatsManager>,
     tick_counter: u64,
+    checkpoint_dir: Option<PathBuf>,
+    checkpoint_interval: u64, // 每 N 个 tick 保存一次 checkpoint
 }
 
 impl Node {
@@ -144,7 +172,22 @@ impl Node {
         let geo = GeoPoint::random(&mut rng);
         let capabilities = config.device_manager.get();
         
-        let inference = InferenceEngine::new(config.inference)?;
+        let inference = InferenceEngine::new(config.inference.clone())?;
+        
+        // 尝试加载最新的 checkpoint
+        if let Some(ref checkpoint_dir) = config.inference.checkpoint_dir {
+            if let Ok(Some(latest_checkpoint)) = InferenceEngine::find_latest_checkpoint(checkpoint_dir) {
+                match inference.load_checkpoint(&latest_checkpoint) {
+                    Ok(_) => {
+                        println!("[Checkpoint] 已加载最新 checkpoint: {:?}", latest_checkpoint);
+                    }
+                    Err(e) => {
+                        eprintln!("[Checkpoint] 加载失败: {:?}", e);
+                    }
+                }
+            }
+        }
+        
         let comms = CommsHandle::new(config.comms).await?;
         
         // 设置初始网络类型
@@ -156,7 +199,7 @@ impl Node {
         
         // 初始化统计管理器
         let model_hash = inference.tensor_hash();
-        let model_version = 1;
+        let model_version = inference.tensor_snapshot().version;
         let stats = Arc::new(TrainingStatsManager::new(model_hash.clone(), model_version));
         
         println!(
@@ -187,6 +230,8 @@ impl Node {
             device_manager: config.device_manager,
             stats,
             tick_counter: 0,
+            checkpoint_dir: config.inference.checkpoint_dir.clone(),
+            checkpoint_interval: 100, // 默认每 100 个 tick 保存一次
         })
     }
 
@@ -317,6 +362,21 @@ impl Node {
                 self.inference.parameter_change_magnitude(),
                 self.inference.parameter_std_dev()
             );
+        }
+        
+        // 定期保存 checkpoint
+        if let Some(ref checkpoint_dir) = self.checkpoint_dir {
+            if self.tick_counter % self.checkpoint_interval == 0 && self.tick_counter > 0 {
+                let checkpoint_path = checkpoint_dir.join(format!("checkpoint_{}", self.tick_counter));
+                match self.inference.save_checkpoint_structured(&checkpoint_path) {
+                    Ok(_) => {
+                        println!("[Checkpoint] 已保存: {:?}", checkpoint_path);
+                    }
+                    Err(e) => {
+                        eprintln!("[Checkpoint] 保存失败: {:?}", e);
+                    }
+                }
+            }
         }
         
         self.check_topology_health();
@@ -647,6 +707,27 @@ async fn main() -> Result<()> {
             std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
             port,
         ));
+    }
+    
+    // 从环境变量读取 checkpoint 目录
+    if let Ok(checkpoint_dir) = std::env::var("GGB_CHECKPOINT_DIR") {
+        config.inference.checkpoint_dir = Some(PathBuf::from(checkpoint_dir));
+    }
+    
+    // 从环境变量读取学习率
+    if let Ok(lr_str) = std::env::var("GGB_LEARNING_RATE") {
+        if let Ok(lr) = lr_str.parse::<f32>() {
+            config.inference.learning_rate = lr;
+            println!("使用自定义学习率: {}", lr);
+        }
+    }
+    
+    // 从环境变量读取是否启用训练
+    if let Ok(use_training) = std::env::var("GGB_USE_TRAINING") {
+        config.inference.use_training = use_training.parse().unwrap_or(false);
+        if config.inference.use_training {
+            println!("启用真实训练模式");
+        }
     }
     
     // 添加 bootstrap 节点
