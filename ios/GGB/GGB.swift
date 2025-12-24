@@ -8,6 +8,7 @@
 import Foundation
 import Network
 import UIKit
+import CoreTelephony
 
 /// 网络类型枚举
 public enum NetworkType: String {
@@ -104,18 +105,8 @@ public class GgbNode {
             if path.usesInterfaceType(.wifi) {
                 networkType = .wifi
             } else if path.usesInterfaceType(.cellular) {
-                // 检测真实网络类型（4G/5G）
-                if #available(iOS 14.0, *) {
-                    if path.status == .satisfied {
-                        // iOS 14+ 可以使用更精确的检测
-                        // 简化处理，实际应该使用 CoreTelephony
-                        networkType = .cellular5G
-                    } else {
-                        networkType = .cellular4G
-                    }
-                } else {
-                    networkType = .cellular4G
-                }
+                // 使用 CoreTelephony 检测真实的移动网络类型
+                networkType = Self.detectCellularNetworkType()
             } else {
                 networkType = .unknown
             }
@@ -129,6 +120,72 @@ public class GgbNode {
         _ = semaphore.wait(timeout: .now() + 1.0)
         
         return networkType.rawValue
+    }
+    
+    /// 使用 CoreTelephony 检测移动网络类型（4G/5G）
+    private static func detectCellularNetworkType() -> NetworkType {
+        let networkInfo = CTTelephonyNetworkInfo()
+        
+        // iOS 12+ 支持多 SIM 卡，需要检查所有服务提供商
+        if #available(iOS 12.0, *) {
+            if let serviceCurrentRadioAccessTechnology = networkInfo.serviceCurrentRadioAccessTechnology {
+                for (_, technology) in serviceCurrentRadioAccessTechnology {
+                    if let networkType = Self.networkTypeFromRadioAccessTechnology(technology) {
+                        // 如果检测到 5G，直接返回
+                        if networkType == .cellular5G {
+                            return networkType
+                        }
+                    }
+                }
+                // 如果没有 5G，返回第一个检测到的类型（通常是 4G）
+                for (_, technology) in serviceCurrentRadioAccessTechnology {
+                    if let networkType = Self.networkTypeFromRadioAccessTechnology(technology) {
+                        return networkType
+                    }
+                }
+            }
+        } else {
+            // iOS 12 以下使用旧 API
+            if let technology = networkInfo.currentRadioAccessTechnology {
+                if let networkType = Self.networkTypeFromRadioAccessTechnology(technology) {
+                    return networkType
+                }
+            }
+        }
+        
+        // 默认返回 4G
+        return .cellular4G
+    }
+    
+    /// 从 CoreTelephony 的 Radio Access Technology 字符串转换为 NetworkType
+    private static func networkTypeFromRadioAccessTechnology(_ technology: String) -> NetworkType? {
+        // 5G 网络类型（iOS 14+）
+        if #available(iOS 14.1, *) {
+            if technology == CTRadioAccessTechnologyNRNSA || 
+               technology == CTRadioAccessTechnologyNR ||
+               technology == CTRadioAccessTechnologyNRSASub6GHz {
+                return .cellular5G
+            }
+        }
+        
+        // 4G/LTE 网络类型
+        if technology == CTRadioAccessTechnologyLTE {
+            return .cellular4G
+        }
+        
+        // 其他类型（3G、2G 等）也归类为 4G
+        if technology == CTRadioAccessTechnologyWCDMA ||
+           technology == CTRadioAccessTechnologyHSDPA ||
+           technology == CTRadioAccessTechnologyHSUPA ||
+           technology == CTRadioAccessTechnologyCDMA1x ||
+           technology == CTRadioAccessTechnologyCDMAEVDORev0 ||
+           technology == CTRadioAccessTechnologyCDMAEVDORevA ||
+           technology == CTRadioAccessTechnologyCDMAEVDORevB ||
+           technology == CTRadioAccessTechnologyeHRPD {
+            return .cellular4G
+        }
+        
+        return nil
     }
     
     /// 获取设备能力信息（JSON 格式）

@@ -19,6 +19,7 @@ use crate::topology::{TopologyConfig, TopologySelector};
 use crate::types::{GeoPoint, GgbMessage};
 use anyhow::Result;
 use futures::StreamExt;
+use libp2p::kad::KademliaEvent;
 use libp2p::swarm::SwarmEvent;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
@@ -35,6 +36,13 @@ struct AppConfig {
 impl AppConfig {
     /// 根据设备能力自动调整配置
     pub fn from_device_capabilities(capabilities: DeviceCapabilities) -> Self {
+        // 如果检测失败，使用默认桌面配置作为回退
+        let capabilities = if capabilities.max_memory_mb == 0 || capabilities.cpu_cores == 0 {
+            println!("[警告] 设备检测失败，使用默认桌面配置");
+            DeviceCapabilities::default_desktop()
+        } else {
+            capabilities
+        };
         let model_dim = capabilities.recommended_model_dim();
         let network_type = capabilities.network_type;
 
@@ -86,8 +94,36 @@ impl AppConfig {
 
 impl Default for AppConfig {
     fn default() -> Self {
-        let device_manager = DeviceManager::new();
-        let capabilities = device_manager.get();
+        // 检查环境变量，支持使用预设的设备配置
+        let capabilities = if let Ok(device_type) = std::env::var("GGB_DEVICE_TYPE") {
+            match device_type.as_str() {
+                "desktop" | "default" => {
+                    println!("[配置] 使用默认桌面设备配置");
+                    DeviceCapabilities::default_desktop()
+                }
+                "low" | "low_end" => {
+                    println!("[配置] 使用低端移动设备配置");
+                    DeviceCapabilities::low_end_mobile()
+                }
+                "mid" | "mid_range" => {
+                    println!("[配置] 使用中端移动设备配置");
+                    DeviceCapabilities::mid_range_mobile()
+                }
+                "high" | "high_end" => {
+                    println!("[配置] 使用高端移动设备配置");
+                    DeviceCapabilities::high_end_mobile()
+                }
+                _ => {
+                    println!("[配置] 未知设备类型 '{}'，使用自动检测", device_type);
+                    let device_manager = DeviceManager::new();
+                    device_manager.get()
+                }
+            }
+        } else {
+            let device_manager = DeviceManager::new();
+            device_manager.get()
+        };
+        
         Self::from_device_capabilities(capabilities)
     }
 }
@@ -201,6 +237,8 @@ impl Node {
                     let old_network = self.comms.network_type();
                     if caps.network_type != old_network {
                         self.comms.update_network_type(caps.network_type);
+                        // 同步更新设备管理器中的网络类型
+                        self.device_manager.update_network_type(caps.network_type);
                         println!(
                             "[网络切换] {:?} -> {:?}",
                             old_network,
@@ -215,7 +253,12 @@ impl Node {
                             level * 100.0,
                             caps.is_charging
                         );
+                        // 更新设备管理器中的电池状态
+                        self.device_manager.update_battery(caps.battery_level, caps.is_charging);
                     }
+                    
+                    // 更新硬件信息（内存和CPU）
+                    self.device_manager.update_hardware(caps.max_memory_mb, caps.cpu_cores);
                 }
             }
         }
@@ -318,42 +361,63 @@ impl Node {
             }
             OutEvent::Kademlia(event) => {
                 match event {
-                    libp2p::kad::Event::RoutingUpdated { peer, .. } => {
+                    KademliaEvent::RoutingUpdated { peer, .. } => {
                         println!("[DHT] 路由更新: {}", peer);
                         self.comms.add_peer(&peer);
                     }
-                    libp2p::kad::Event::RoutingUpdated { .. } => {}
-                    libp2p::kad::Event::RoutablePeer { peer, .. } => {
+                    KademliaEvent::RoutablePeer { peer, .. } => {
                         println!("[DHT] 发现可路由节点: {}", peer);
                         self.comms.add_peer(&peer);
                     }
-                    libp2p::kad::Event::PendingRoutablePeer { peer, .. } => {
+                    KademliaEvent::PendingRoutablePeer { peer, .. } => {
                         println!("[DHT] 待处理可路由节点: {}", peer);
                     }
-                    libp2p::kad::Event::QueryResult { result, .. } => {
+                    KademliaEvent::OutboundQueryProgressed { result, .. } => {
                         match result {
-                            Ok(libp2p::kad::QueryResult::Bootstrap(ok)) => {
-                                if ok.num_remaining == 0 {
-                                    println!("[DHT] Bootstrap 完成，发现 {} 个节点", ok.num_remaining);
+                            libp2p::kad::QueryResult::Bootstrap(ok_result) => {
+                                match ok_result {
+                                    Ok(ok) => {
+                                        if ok.num_remaining == 0 {
+                                            println!("[DHT] Bootstrap 完成，发现 {} 个节点", ok.num_remaining);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!("[DHT] Bootstrap 错误: {:?}", e);
+                                    }
                                 }
                             }
-                            Ok(libp2p::kad::QueryResult::GetProviders(providers)) => {
-                                println!("[DHT] 获取到 {} 个提供者", providers.providers.len());
-                                for peer in providers.providers {
-                                    self.comms.add_peer(&peer);
+                            libp2p::kad::QueryResult::GetProviders(providers_result) => {
+                                match providers_result {
+                                    Ok(providers) => {
+                                        println!("[DHT] 获取到提供者: {:?}", providers);
+                                        // GetProvidersOk 可能包含 providers 字段或其他结构
+                                        // 暂时使用 Debug 输出，后续可根据实际结构调整
+                                    }
+                                    Err(e) => {
+                                        eprintln!("[DHT] GetProviders 错误: {:?}", e);
+                                    }
                                 }
                             }
-                            Ok(libp2p::kad::QueryResult::GetRecord(record)) => {
-                                println!("[DHT] 获取到记录: {:?}", record.record.key);
+                            libp2p::kad::QueryResult::GetRecord(record_result) => {
+                                match record_result {
+                                    Ok(record) => {
+                                        println!("[DHT] 获取到记录: {:?}", record);
+                                        // GetRecordOk 可能包含 record 字段或其他结构
+                                        // 暂时使用 Debug 输出，后续可根据实际结构调整
+                                    }
+                                    Err(e) => {
+                                        eprintln!("[DHT] GetRecord 错误: {:?}", e);
+                                    }
+                                }
                             }
-                            Ok(libp2p::kad::QueryResult::PutRecord(key)) => {
+                            libp2p::kad::QueryResult::PutRecord(key) => {
                                 println!("[DHT] 存储记录: {:?}", key);
                             }
-                            Ok(libp2p::kad::QueryResult::StartProviding(key)) => {
+                            libp2p::kad::QueryResult::StartProviding(key) => {
                                 println!("[DHT] 开始提供服务: {:?}", key);
                             }
-                            Err(e) => {
-                                eprintln!("[DHT] 查询错误: {:?}", e);
+                            _ => {
+                                println!("[DHT] 其他查询结果: {:?}", result);
                             }
                         }
                     }

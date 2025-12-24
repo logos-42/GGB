@@ -2,6 +2,8 @@
 //! 
 //! 将核心功能导出为库，以便测试和集成使用
 
+#![allow(non_snake_case)] // 允许使用 GGB 作为 crate 名称
+
 pub mod comms;
 pub mod consensus;
 pub mod crypto;
@@ -19,7 +21,7 @@ pub mod blockchain;
 pub use comms::{CommsConfig, CommsHandle};
 pub use consensus::{ConsensusConfig, ConsensusEngine};
 pub use crypto::{CryptoConfig, CryptoSuite};
-pub use device::{DeviceCapabilities, DeviceManager, NetworkType};
+pub use device::{DeviceCapabilities, DeviceDetector, DeviceManager, DeviceType, GpuComputeApi, NetworkType};
 pub use inference::{InferenceConfig, InferenceEngine};
 pub use stats::TrainingStatsManager;
 pub use topology::{TopologyConfig, TopologySelector};

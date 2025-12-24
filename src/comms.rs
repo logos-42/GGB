@@ -7,11 +7,12 @@ use libp2p::{
         MessageAuthenticity, PublishError, ValidationMode,
     },
     identity,
-    kad::{self, store::MemoryStore, Kademlia, KademliaEvent},
+    kad::{store::MemoryStore, Kademlia, KademliaEvent},
     mdns::{self, tokio::Behaviour as Mdns, Event as MdnsEvent},
     swarm::{NetworkBehaviour, SwarmBuilder},
     Multiaddr, PeerId, Swarm,
 };
+use libp2p::multiaddr::Protocol;
 use std::path::PathBuf;
 use parking_lot::RwLock;
 use quinn::{Endpoint, ServerConfig};
@@ -172,8 +173,7 @@ impl CommsHandle {
         
         // 初始化 Kademlia DHT
         let store = MemoryStore::new(peer_id);
-        let mut kademlia = Kademlia::new(peer_id, store);
-        kademlia.set_mode(Some(kad::Mode::Server));
+        let kademlia = Kademlia::new(peer_id, store);
         
         // 从文件加载 bootstrap 节点（如果存在）
         let mut bootstrap_peers = Vec::new();
@@ -188,9 +188,17 @@ impl CommsHandle {
         }
         
         // 添加 bootstrap 节点到 Kademlia
+        let mut kademlia = kademlia;
         for addr in &bootstrap_peers {
-            if let Ok((peer_id, _)) = addr.clone().try_into() {
-                kademlia.add_address(&peer_id, addr.clone());
+            // 从 Multiaddr 中提取 PeerId
+            // Multiaddr 格式通常是: /ip4/127.0.0.1/tcp/8080/p2p/<peer_id>
+            let mut addr_clone = addr.clone();
+            if let Some(protocol) = addr_clone.pop() {
+                if let Protocol::P2p(multihash) = protocol {
+                    if let Ok(peer_id) = PeerId::from_multihash(multihash) {
+                        kademlia.add_address(&peer_id, addr.clone());
+                    }
+                }
             }
         }
         
@@ -314,6 +322,7 @@ impl ConnectionInfo {
         self.consecutive_failures += 1;
     }
 
+    /// 标记连接成功（用于健康检查）
     fn mark_success(&mut self) {
         self.consecutive_failures = 0;
         self.last_health_check = Instant::now();
@@ -407,7 +416,10 @@ impl QuicGateway {
                     if info.connection.close_reason().is_some() {
                         return false;
                     }
-                    if info.last_health_check.elapsed() > Duration::from_secs(300) {
+                    // 如果连接仍然活跃且健康，标记为成功
+                    if info.connection.close_reason().is_none() && info.is_healthy() {
+                        info.mark_success();
+                    } else if info.last_health_check.elapsed() > Duration::from_secs(300) {
                         info.mark_failure();
                     }
                     info.is_healthy()
@@ -486,11 +498,13 @@ impl QuicGateway {
         let mut success = false;
         let mut failed_indices = Vec::new();
         
+        let mut success_indices = Vec::new();
         for (conn, idx) in entries {
             match conn.open_uni().await {
                 Ok(mut send) => {
                     if send.write_all(&bytes).await.is_ok() && send.finish().await.is_ok() {
                         success = true;
+                        success_indices.push(idx);
                     } else {
                         failed_indices.push(idx);
                     }
@@ -501,9 +515,20 @@ impl QuicGateway {
             }
         }
         
+        let mut guard = self.connections.write();
+        let current_len = guard.len();
+        
+        // 标记成功的连接
+        for idx in success_indices {
+            if idx < current_len {
+                if let Some(info) = guard.get_mut(idx) {
+                    info.mark_success();
+                }
+            }
+        }
+        
+        // 标记失败的连接
         if !failed_indices.is_empty() {
-            let mut guard = self.connections.write();
-            let current_len = guard.len();
             for idx in failed_indices {
                 if idx < current_len {
                     if let Some(info) = guard.get_mut(idx) {

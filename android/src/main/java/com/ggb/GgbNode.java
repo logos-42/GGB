@@ -124,8 +124,9 @@ public class GgbNode {
     
     /**
      * 检测网络类型（使用真实 Android API）
+     * 供 JNI 回调使用
      */
-    private String detectNetworkType() {
+    public String detectNetworkType() {
         ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         if (cm == null) {
             return "unknown";
