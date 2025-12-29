@@ -142,6 +142,26 @@ impl TrainingData for SyntheticData {
 /// 数组数据加载器
 /// 
 /// 从预加载的数组数据中提供训练样本
+/// 
+/// # 示例
+/// 
+/// ```rust
+/// use GGB::training::ArrayData;
+/// use ndarray::Array1;
+/// 
+/// let inputs: Vec<Array1<f32>> = vec![
+///     Array1::from_vec(vec![1.0, 2.0]),
+///     Array1::from_vec(vec![3.0, 4.0]),
+/// ];
+/// let outputs: Vec<Array1<f32>> = vec![
+///     Array1::from_vec(vec![2.0]),
+///     Array1::from_vec(vec![6.0]),
+/// ];
+/// 
+/// let mut data = ArrayData::new(inputs, outputs).unwrap();
+/// assert_eq!(data.input_dim(), 2);
+/// assert_eq!(data.output_dim(), 1);
+/// ```
 pub struct ArrayData {
     inputs: Vec<Array1<f32>>,
     outputs: Vec<Array1<f32>>,

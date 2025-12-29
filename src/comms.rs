@@ -23,6 +23,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::interval;
 
+#[derive(Clone)]
 pub struct CommsConfig {
     pub topic: String,
     pub listen_addr: Option<Multiaddr>,

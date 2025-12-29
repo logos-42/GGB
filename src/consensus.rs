@@ -32,6 +32,7 @@ pub struct SignedGossip {
     pub staking_score: f32,
 }
 
+#[derive(Clone)]
 pub struct ConsensusConfig {
     pub heartbeat_timeout: Duration,
 }

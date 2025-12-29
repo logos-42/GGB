@@ -5,6 +5,7 @@ use parking_lot::RwLock;
 use std::sync::Arc;
 
 /// 设备能力管理器（支持运行时更新）
+#[derive(Clone)]
 pub struct DeviceManager {
     capabilities: Arc<RwLock<DeviceCapabilities>>,
 }

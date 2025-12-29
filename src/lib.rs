@@ -4,13 +4,16 @@
 
 #![allow(non_snake_case)] // 允许使用 GGB 作为 crate 名称
 
+pub mod args;
 pub mod comms;
+pub mod config;
 pub mod consensus;
 pub mod crypto;
 pub mod device;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 pub mod inference;
+pub mod node;
 pub mod stats;
 pub mod topology;
 pub mod training;

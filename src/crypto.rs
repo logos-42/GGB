@@ -31,6 +31,7 @@ pub struct SignatureBundle {
     pub sol: SolSignature,
 }
 
+#[derive(Clone)]
 pub struct CryptoConfig {
     pub eth_hex_seed: Option<String>,
     pub sol_bs58_seed: Option<String>,
