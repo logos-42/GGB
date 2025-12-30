@@ -1,155 +1,153 @@
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
+//! 设备能力结构
+//! 
+//! 定义设备能力的数据结构和相关功能。
 
-use super::types::{DeviceType, GpuComputeApi, NetworkType};
+use super::{DeviceType, GpuComputeApi, NetworkType};
 
-/// 设备能力信息
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// 设备能力
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DeviceCapabilities {
     /// 最大可用内存（MB）
-    pub max_memory_mb: usize,
+    pub max_memory_mb: u64,
     /// CPU 核心数
-    pub cpu_cores: usize,
-    /// 是否有 GPU 支持
+    pub cpu_cores: u32,
+    /// 是否有 GPU
     pub has_gpu: bool,
-    /// CPU 架构（如 "x86_64", "aarch64", "arm" 等）
+    /// CPU 架构
     pub cpu_architecture: String,
-    /// 支持的 GPU 计算 API 列表
+    /// 支持的 GPU 计算 API
     pub gpu_compute_apis: Vec<GpuComputeApi>,
-    /// 是否有 TPU 支持（可选）
+    /// 是否有 TPU/NPU
     pub has_tpu: Option<bool>,
-    /// 当前网络类型
+    /// 网络类型
     pub network_type: NetworkType,
-    /// 电池电量（0.0-1.0），None 表示无法检测或桌面设备
+    /// 电池电量（0-100），None 表示没有电池
     pub battery_level: Option<f32>,
     /// 是否正在充电
-    pub is_charging: bool,
+    pub is_charging: Option<bool>,
     /// 设备类型
     pub device_type: DeviceType,
 }
 
 impl DeviceCapabilities {
-    /// 创建默认设备能力（用于桌面/服务器环境）
-    pub fn default_desktop() -> Self {
+    /// 创建新的设备能力实例
+    pub fn new(
+        max_memory_mb: u64,
+        cpu_cores: u32,
+        has_gpu: bool,
+        cpu_architecture: String,
+        gpu_compute_apis: Vec<GpuComputeApi>,
+        has_tpu: Option<bool>,
+        network_type: NetworkType,
+        battery_level: Option<f32>,
+        is_charging: Option<bool>,
+        device_type: DeviceType,
+    ) -> Self {
         Self {
-            max_memory_mb: 2048,
-            cpu_cores: 4,
-            has_gpu: false,
-            cpu_architecture: std::env::consts::ARCH.to_string(),
-            gpu_compute_apis: Vec::new(),
-            has_tpu: None,
-            network_type: NetworkType::WiFi,
-            battery_level: None,
-            is_charging: true,
-            device_type: DeviceType::Desktop,
+            max_memory_mb,
+            cpu_cores,
+            has_gpu,
+            cpu_architecture,
+            gpu_compute_apis,
+            has_tpu,
+            network_type,
+            battery_level,
+            is_charging,
+            device_type,
         }
     }
-
-    /// 创建低端移动设备能力
-    pub fn low_end_mobile() -> Self {
-        Self {
-            max_memory_mb: 512,
-            cpu_cores: 2,
-            has_gpu: false,
-            cpu_architecture: std::env::consts::ARCH.to_string(),
-            gpu_compute_apis: Vec::new(),
-            has_tpu: None,
-            network_type: NetworkType::Cellular4G,
-            battery_level: Some(0.5),
-            is_charging: false,
-            device_type: DeviceType::Phone,
+    
+    /// 获取性能评分（0-1）
+    pub fn performance_score(&self) -> f64 {
+        let mut score = 0.0;
+        
+        // CPU 核心数评分
+        let cpu_score = (self.cpu_cores as f64).min(16.0) / 16.0;
+        score += cpu_score * 0.3;
+        
+        // 内存评分
+        let memory_score = (self.max_memory_mb as f64).min(16384.0) / 16384.0; // 16GB 为满分
+        score += memory_score * 0.3;
+        
+        // GPU 评分
+        let gpu_score = if self.has_gpu { 0.2 } else { 0.0 };
+        score += gpu_score;
+        
+        // TPU 评分
+        let tpu_score = if self.has_tpu.unwrap_or(false) { 0.1 } else { 0.0 };
+        score += tpu_score;
+        
+        // 网络评分
+        let network_score = match self.network_type {
+            NetworkType::Wired => 0.1,
+            NetworkType::Wifi => 0.08,
+            NetworkType::Cellular5G => 0.06,
+            NetworkType::Cellular4G => 0.04,
+            NetworkType::Unknown => 0.02,
+        };
+        score += network_score;
+        
+        score.min(1.0)
+    }
+    
+    /// 检查是否支持特定 GPU API
+    pub fn supports_gpu_api(&self, api: GpuComputeApi) -> bool {
+        self.gpu_compute_apis.contains(&api)
+    }
+    
+    /// 检查是否有足够的资源
+    pub fn has_sufficient_resources(&self, required_memory_mb: u64, required_cores: u32) -> bool {
+        self.max_memory_mb >= required_memory_mb && self.cpu_cores >= required_cores
+    }
+    
+    /// 获取电池状态字符串
+    pub fn battery_status(&self) -> String {
+        match (self.battery_level, self.is_charging) {
+            (Some(level), Some(true)) => format!("{}% (充电中)", level),
+            (Some(level), Some(false)) => format!("{}% (使用电池)", level),
+            (Some(level), None) => format!("{}%", level),
+            (None, _) => "无电池".to_string(),
         }
     }
-
-    /// 创建中端移动设备能力
-    pub fn mid_range_mobile() -> Self {
-        Self {
-            max_memory_mb: 1024,
-            cpu_cores: 4,
-            has_gpu: false,
-            cpu_architecture: std::env::consts::ARCH.to_string(),
-            gpu_compute_apis: Vec::new(),
-            has_tpu: None,
-            network_type: NetworkType::Cellular5G,
-            battery_level: Some(0.7),
-            is_charging: false,
-            device_type: DeviceType::Phone,
-        }
+    
+    /// 获取设备摘要
+    pub fn summary(&self) -> String {
+        format!(
+            "{} ({}核心, {}MB内存, {}{}{})",
+            self.device_type_str(),
+            self.cpu_cores,
+            self.max_memory_mb,
+            if self.has_gpu { "有GPU" } else { "无GPU" },
+            if self.has_tpu.unwrap_or(false) { ", 有TPU" } else { "" },
+            if self.battery_level.is_some() { ", 电池" } else { "" }
+        )
     }
-
-    /// 创建高端移动设备能力
-    pub fn high_end_mobile() -> Self {
-        Self {
-            max_memory_mb: 2048,
-            cpu_cores: 8,
-            has_gpu: true,
-            cpu_architecture: std::env::consts::ARCH.to_string(),
-            gpu_compute_apis: Vec::new(),
-            has_tpu: None,
-            network_type: NetworkType::WiFi,
-            battery_level: Some(0.9),
-            is_charging: true,
-            device_type: DeviceType::Tablet,
-        }
-    }
-
-    /// 根据内存计算推荐的模型维度
-    /// 每个参数约 4 字节（f32），预留 50% 内存给系统和其他用途
-    pub fn recommended_model_dim(&self) -> usize {
-        // 预留 50% 内存给系统，剩余用于模型
-        let available_mb = self.max_memory_mb / 2;
-        // 每个参数 4 字节，加上 residual 需要 2 倍空间
-        let bytes_per_param = 8; // params + residual
-        let available_bytes = available_mb * 1024 * 1024;
-        let max_params = available_bytes / bytes_per_param;
-        // 限制在合理范围内
-        max_params.min(4096).max(64)
-    }
-
-    /// 根据电池状态推荐训练频率（秒）
-    pub fn recommended_tick_interval(&self) -> Duration {
-        if let Some(level) = self.battery_level {
-            if self.is_charging {
-                Duration::from_secs(10) // 充电时正常频率
-            } else if level > 0.5 {
-                Duration::from_secs(10) // 高电量正常频率
-            } else if level > 0.2 {
-                Duration::from_secs(30) // 中电量降低频率
-            } else {
-                Duration::from_secs(60) // 低电量最低频率
-            }
-        } else {
-            Duration::from_secs(10) // 桌面设备或无法检测时使用默认
-        }
-    }
-
-    /// 判断是否应该暂停训练（低电量且未充电）
-    pub fn should_pause_training(&self) -> bool {
-        if let Some(level) = self.battery_level {
-            !self.is_charging && level < 0.1
-        } else {
-            false
-        }
-    }
-
-    /// 根据设备能力推荐邻居数量
-    pub fn recommended_max_neighbors(&self) -> usize {
+    
+    /// 获取设备类型字符串
+    fn device_type_str(&self) -> &str {
         match self.device_type {
-            DeviceType::Tablet | DeviceType::Desktop => 8,
-            DeviceType::Phone => {
-                if self.max_memory_mb >= 1024 {
-                    6
-                } else {
-                    4
-                }
-            }
-            DeviceType::Unknown => 4,
+            DeviceType::Desktop => "桌面设备",
+            DeviceType::Phone => "手机",
+            DeviceType::Tablet => "平板",
+            DeviceType::Server => "服务器",
+            DeviceType::Embedded => "嵌入式设备",
         }
-    }
-
-    /// 根据设备能力推荐备份邻居数量
-    pub fn recommended_failover_pool(&self) -> usize {
-        self.recommended_max_neighbors() / 2
     }
 }
 
+impl Default for DeviceCapabilities {
+    fn default() -> Self {
+        Self {
+            max_memory_mb: 8192, // 8GB
+            cpu_cores: 4,
+            has_gpu: false,
+            cpu_architecture: "x86_64".to_string(),
+            gpu_compute_apis: Vec::new(),
+            has_tpu: None,
+            network_type: NetworkType::Unknown,
+            battery_level: None,
+            is_charging: None,
+            device_type: DeviceType::Desktop,
+        }
+    }
+}

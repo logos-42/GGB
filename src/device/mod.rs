@@ -1,4 +1,4 @@
-//! 设备能力检测模块
+//! 设备管理模块
 //! 
 //! 此模块提供了跨平台的设备能力检测功能，包括：
 //! - CPU、GPU、NPU/TPU 检测
@@ -6,19 +6,88 @@
 //! - 电池状态检测
 //! - 设备能力管理和运行时更新
 
-pub mod types;
+pub mod detection;
 pub mod capabilities;
-pub mod detector;
 pub mod manager;
 
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
-pub mod platform;
-
 // 重新导出公共接口
-#[allow(unused_imports)] // 这些是公共 API，供外部使用
-pub use types::{DeviceType, GpuComputeApi, NetworkType};
-pub use capabilities::DeviceCapabilities;
-#[allow(unused_imports)] // 这是公共 API，供外部使用
-pub use detector::DeviceDetector;
-pub use manager::DeviceManager;
+pub use detection::*;
+pub use capabilities::*;
+pub use manager::*;
 
+/// 设备类型枚举
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum DeviceType {
+    /// 桌面设备
+    Desktop,
+    /// 手机设备
+    Phone,
+    /// 平板设备
+    Tablet,
+    /// 服务器设备
+    Server,
+    /// 嵌入式设备
+    Embedded,
+}
+
+/// GPU 计算 API 枚举
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum GpuComputeApi {
+    /// CUDA (NVIDIA)
+    Cuda,
+    /// OpenCL
+    OpenCl,
+    /// Metal (Apple)
+    Metal,
+    /// Vulkan
+    Vulkan,
+    /// DirectX 12
+    DirectX12,
+    /// ROCm (AMD)
+    Rocm,
+}
+
+/// 网络类型枚举
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum NetworkType {
+    /// 有线网络
+    Wired,
+    /// WiFi 网络
+    Wifi,
+    /// 4G 网络
+    Cellular4G,
+    /// 5G 网络
+    Cellular5G,
+    /// 未知网络
+    Unknown,
+}
+
+/// 设备配置
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DeviceConfig {
+    /// 是否启用 GPU 加速
+    pub enable_gpu_acceleration: bool,
+    /// 是否启用 TPU/NPU 加速
+    pub enable_tpu_acceleration: bool,
+    /// 最大内存使用限制（MB）
+    pub max_memory_mb: u64,
+    /// 最大 CPU 核心使用数
+    pub max_cpu_cores: u32,
+    /// 是否启用电池优化
+    pub enable_battery_optimization: bool,
+    /// 是否启用网络感知
+    pub enable_network_awareness: bool,
+}
+
+impl Default for DeviceConfig {
+    fn default() -> Self {
+        Self {
+            enable_gpu_acceleration: true,
+            enable_tpu_acceleration: true,
+            max_memory_mb: 4096, // 4GB
+            max_cpu_cores: 4,
+            enable_battery_optimization: true,
+            enable_network_awareness: true,
+        }
+    }
+}
