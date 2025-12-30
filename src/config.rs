@@ -17,6 +17,62 @@ pub struct SecurityConfig {
     pub max_hops: u8,
     pub enable_autonat: bool,
     pub enable_dcutr: bool,
+    // 新增：隐私-性能平衡配置
+    pub privacy_performance: PrivacyPerformanceConfig,
+}
+
+/// 隐私-性能平衡配置
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PrivacyPerformanceConfig {
+    /// 平衡模式：performance（性能优先）、balanced（平衡）、privacy（隐私优先）、adaptive（自适应）
+    pub mode: BalanceMode,
+    /// 性能权重（0.0-1.0），隐私权重 = 1.0 - performance_weight
+    pub performance_weight: f32,
+    /// 是否启用硬件加速加密
+    pub enable_hardware_acceleration: bool,
+    /// 连接池大小
+    pub connection_pool_size: usize,
+    /// 是否启用0-RTT连接
+    pub enable_0rtt: bool,
+    /// 拥塞控制算法
+    pub congestion_control: CongestionControlAlgorithm,
+    /// 路由选择策略
+    pub routing_strategy: RoutingStrategy,
+    /// 最小隐私评分要求（0.0-1.0）
+    pub min_privacy_score: f32,
+    /// 最小性能评分要求（0.0-1.0）
+    pub min_performance_score: f32,
+    /// 是否允许回退到直接连接
+    pub fallback_to_direct: bool,
+    /// 性能监控间隔（秒）
+    pub monitoring_interval_secs: u64,
+}
+
+/// 平衡模式枚举
+#[derive(Clone, Serialize, Deserialize)]
+pub enum BalanceMode {
+    Performance,
+    Balanced,
+    Privacy,
+    Adaptive,
+}
+
+/// 拥塞控制算法枚举
+#[derive(Clone, Serialize, Deserialize)]
+pub enum CongestionControlAlgorithm {
+    Bbr,
+    Cubic,
+    Reno,
+}
+
+/// 路由选择策略枚举
+#[derive(Clone, Serialize, Deserialize)]
+pub enum RoutingStrategy {
+    SmartBalance,      // 智能平衡
+    PrivacyFirst,      // 隐私优先
+    PerformanceFirst,  // 性能优先
+    LatencyBased,      // 延迟优先
+    BandwidthBased,    // 带宽优先
 }
 
 impl Default for SecurityConfig {
@@ -29,6 +85,25 @@ impl Default for SecurityConfig {
             max_hops: 3,
             enable_autonat: true,
             enable_dcutr: true,
+            privacy_performance: PrivacyPerformanceConfig::default(),
+        }
+    }
+}
+
+impl Default for PrivacyPerformanceConfig {
+    fn default() -> Self {
+        Self {
+            mode: BalanceMode::Balanced,
+            performance_weight: 0.6,
+            enable_hardware_acceleration: true,
+            connection_pool_size: 10,
+            enable_0rtt: true,
+            congestion_control: CongestionControlAlgorithm::Bbr,
+            routing_strategy: RoutingStrategy::SmartBalance,
+            min_privacy_score: 0.7,
+            min_performance_score: 0.8,
+            fallback_to_direct: true,
+            monitoring_interval_secs: 30,
         }
     }
 }
