@@ -1,0 +1,216 @@
+# GGB 高性能隐私配置模板
+# 此配置优先考虑性能，同时提供基本隐私保护
+
+[security]
+# 是否隐藏IP地址（可选，性能模式下可禁用）
+hide_ip = false
+
+# 是否使用中继网络（如果启用hide_ip则必须启用）
+use_relay = false
+
+# 中继节点列表
+relay_nodes = []
+
+# 最大中继跳数
+max_hops = 1
+
+# 是否启用自动NAT穿透（推荐启用）
+enable_autonat = true
+
+# 是否启用直接连接升级（DCUtR）（性能模式下推荐启用）
+enable_dcutr = true
+
+# 隐私-性能平衡配置
+[security.privacy_performance]
+# 平衡模式：performance（性能优先）
+mode = "performance"
+
+# 性能权重（0.0-1.0），隐私权重 = 1.0 - performance_weight
+performance_weight = 0.8
+
+# 是否启用硬件加速加密（性能模式下强烈推荐）
+enable_hardware_acceleration = true
+
+# 连接池大小（性能模式下可增大）
+connection_pool_size = 15
+
+# 是否启用0-RTT连接（性能模式下强烈推荐）
+enable_0rtt = true
+
+# 拥塞控制算法：bbr（推荐）、cubic、reno
+congestion_control = "bbr"
+
+# 路由选择策略：performance_first（性能优先）
+routing_strategy = "performance_first"
+
+# 最小隐私评分要求（性能模式下可降低）
+min_privacy_score = 0.5
+
+# 最小性能评分要求（性能模式下提高）
+min_performance_score = 0.9
+
+# 是否允许回退到直接连接（性能模式下推荐启用）
+fallback_to_direct = true
+
+# 性能监控间隔（秒）
+monitoring_interval_secs = 20
+
+[comms]
+# 通信主题
+topic = "ggb-training-high-performance"
+
+# 是否启用公共DHT（性能模式下可启用以加速节点发现）
+enable_dht = true
+
+# 监听地址（使用公共地址以最大化连接性）
+listen_addr = "/ip4/0.0.0.0/tcp/0"
+
+# QUIC绑定地址
+quic_bind = "0.0.0.0:9234"
+
+# 引导节点文件
+bootstrap_peers_file = "performance_bootstrap_peers.txt"
+
+# 带宽预算配置（性能模式下可增大）
+[comms.bandwidth]
+# 稀疏更新每窗口数量
+sparse_per_window = 20
+# 密集快照每窗口字节数
+dense_bytes_per_window = 524288  # 512KB
+# 窗口秒数
+window_secs = 60
+
+[topology]
+# 最大邻居数量（性能模式下可增大）
+max_neighbors = 12
+# 故障转移池大小
+failover_pool = 6
+# 地理范围（公里，性能模式下可增大）
+geo_scale_km = 500.0
+# 节点过期时间（秒）
+peer_stale_secs = 120
+
+[inference]
+# 模型维度（性能模式下可增大）
+model_dim = 512
+# 是否使用训练模式
+use_training = true
+# 学习率
+learning_rate = 0.001
+# 损失函数类型：MSE、MAE、CrossEntropy
+loss_type = "MSE"
+# 检查点目录
+checkpoint_dir = "./checkpoints/performance"
+
+[crypto]
+# 高性能加密配置
+[crypto.high_performance]
+# 默认加密算法：chacha20poly1305（移动设备友好）
+default_algorithm = "chacha20poly1305"
+# 是否启用硬件加速（强烈推荐）
+enable_hardware_acceleration = true
+# 是否启用零拷贝加密（性能模式下强烈推荐）
+enable_zero_copy = true
+# 是否启用并行处理（多核系统推荐）
+enable_parallel_processing = true
+# 批量处理大小（字节，性能模式下可增大）
+batch_size_bytes = 2097152  # 2MB
+# 缓存大小（条目）
+cache_size = 2000
+
+# 选择性加密配置（性能模式下可简化）
+[crypto.selective]
+# 敏感数据模式列表（仅关键信息）
+sensitive_patterns = [
+    "password=",
+    "private_key=",
+]
+
+# 零拷贝加密配置
+[crypto.zero_copy]
+# 缓冲区池最小大小
+buffer_pool_min_size = 10
+# 缓冲区池最大大小
+buffer_pool_max_size = 100
+# 最小缓冲区大小（字节）
+min_buffer_size = 4096
+
+# 批量处理配置
+[crypto.batch]
+# 并行处理阈值（数据块数量）
+parallel_threshold = 2
+# 最大并行工作线程数
+max_parallel_workers = 4
+# 批量大小优化
+enable_batch_size_optimization = true
+
+# 性能监控配置
+[monitoring]
+# 是否启用实时监控
+enable_real_time_monitoring = true
+# 调整间隔（秒，性能模式下可缩短）
+adjustment_interval_secs = 15
+# 性能阈值（毫秒，性能模式下更严格）
+performance_threshold_ms = 3
+# 隐私阈值（评分，性能模式下可降低）
+privacy_threshold = 0.5
+# 历史数据窗口大小
+history_window_size = 50
+
+# 性能优化配置
+[performance]
+# 是否启用连接复用
+enable_connection_reuse = true
+# 是否启用压缩
+enable_compression = true
+# 是否启用缓存
+enable_caching = true
+# 缓存TTL（秒）
+cache_ttl_secs = 300
+# 最大缓存大小（MB）
+max_cache_size_mb = 100
+
+# 网络优化配置
+[network]
+# TCP_NODELAY选项
+tcp_nodelay = true
+# TCP_QUICKACK选项
+tcp_quickack = true
+# 接收缓冲区大小（字节）
+receive_buffer_size = 65536
+# 发送缓冲区大小（字节）
+send_buffer_size = 65536
+# 最大段大小（字节）
+max_segment_size = 1460
+
+# QUIC优化配置
+[quic]
+# 最大流数量
+max_streams = 100
+# 初始流窗口大小（字节）
+initial_stream_window = 1048576  # 1MB
+# 初始连接窗口大小（字节）
+initial_connection_window = 4194304  # 4MB
+# 最大空闲超时（秒）
+max_idle_timeout = 30
+# 保持活动间隔（秒）
+keep_alive_interval = 10
+
+# 配置说明：
+# 1. 此配置优先考虑性能，适用于对延迟敏感的应用
+# 2. 禁用IP隐藏以最大化连接性能
+# 3. 启用所有性能优化选项
+# 4. 使用硬件加速和零拷贝加密减少开销
+# 5. 增大连接池和带宽预算
+# 
+# 使用建议：
+# 1. 在高速、稳定网络环境中使用此配置
+# 2. 监控性能指标确保达到目标
+# 3. 根据硬件能力调整并行处理设置
+# 4. 定期检查网络优化效果
+# 
+# 性能目标：
+# 1. 加密延迟 < 1ms
+# 2. 网络延迟增加 < 5%
+# 3. 吞吐量减少 < 2%
+# 4. CPU使用率 < 15%

@@ -1,77 +1,112 @@
-# 快速开始指南
+# GGB 去中心化训练节点 - 运行指南
 
-## 立即开始测试多节点协同训练
+## 🚀 快速开始
 
-### 步骤 1: 编译项目
-
+### 1. 单节点运行（测试）
 ```bash
-cargo build --release
+cargo run
+```
+- 默认随机地理位置
+- 128维模型
+- 自动检测设备能力
+
+### 2. 指定节点ID（多节点协作）
+```bash
+# 第一台电脑
+cargo run -- --node-id 0
+
+# 第二台电脑  
+cargo run -- --node-id 1
+
+# 第三台电脑
+cargo run -- --node-id 2
 ```
 
-### 步骤 2: 启动多节点测试
+**自动配置**：
+- 端口：9234 + node_id
+- Bootstrap：自动连接其他节点的本地地址
 
-**Windows:**
+### 3. 手动配置网络（不同电脑）
+```bash
+# 电脑A (192.168.1.100)
+cargo run -- --node-id 0 --quic-port 9234 --bootstrap 192.168.1.101:9235 --bootstrap 192.168.1.102:9236
+
+# 电脑B (192.168.1.101)
+cargo run -- --node-id 1 --quic-port 9235 --bootstrap 192.168.1.100:9234 --bootstrap 192.168.1.102:9236
+
+# 电脑C (192.168.1.102)
+cargo run -- --node-id 2 --quic-port 9236 --bootstrap 192.168.1.100:9234 --bootstrap 192.168.1.101:9235
+```
+
+## ⚙️ 可用参数
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `--node-id <ID>` | 节点ID (0,1,2...) | `--node-id 0` |
+| `--quic-port <PORT>` | QUIC端口 | `--quic-port 9234` |
+| `--bootstrap <IP:PORT>` | Bootstrap节点地址 | `--bootstrap 192.168.1.100:9234` |
+| `--model-dim <DIM>` | 模型维度 | `--model-dim 512` |
+| `--stats-output <FILE>` | 统计输出文件 | `--stats-output stats.json` |
+
+## 🌐 网络发现机制
+
+### 自动发现（同一局域网）
+- **mDNS**：零配置，自动发现邻近节点
+- **QUIC连接**：低延迟P2P通信
+- **Kademlia DHT**：分布式节点发现
+
+### 手动配置（不同网络）
+- 指定其他节点的公网IP和端口
+- 配置防火墙端口转发
+- 可选：使用DDNS服务
+
+## 📊 监控运行状态
+
+### 控制台输出
+- `[QUIC] 成功连接到 <IP>:<PORT>` - 连接建立
+- `[mDNS] 发现节点 <peer_id>` - 节点发现
+- `拓扑更新：xxx => sim 0.xxx` - 训练协作开始
+- 每10个tick显示训练统计信息
+
+### 统计数据导出
+```bash
+cargo run -- --node-id 0 --stats-output node_stats.json
+```
+
+## 🧪 测试工具
+
+### 多节点自动化测试
 ```powershell
+# Windows
 .\scripts\test_multi_node.ps1 -Nodes 3 -Duration 300
+
+# Linux/Mac
+bash scripts/test_multi_node.sh --nodes 3 --duration 300
 ```
 
-这将：
-- 启动 3 个节点
-- 运行 5 分钟
-- 自动收集统计数据到 `test_output/` 目录
-
-### 步骤 3: 分析结果
-
+### 训练结果分析
 ```bash
 cargo run --bin analyze_training -- --input test_output
 ```
 
-### 步骤 4: 查看训练日志
+## 🔧 设备自适应
 
-训练过程中会输出：
-- 节点发现信息
-- 训练统计摘要（每 10 个 tick）
-- 收敛度指标
-- 网络拓扑状态
+系统自动根据设备能力调整：
+- **内存**：调整模型维度
+- **网络**：WiFi允许密集快照，移动网络仅稀疏更新
+- **电池**：低电量时自动降低训练频率
+- **CPU**：根据核心数调整并行度
 
-## 单节点运行
+## 🎯 验证成功运行
 
-```bash
-cargo run
-```
+看到以下输出表示运行正常：
+1. `启动 GGS 节点 => peer: xxx, eth: xxx, sol: xxx`
+2. `[QUIC] 成功连接到 xxx` 或 `[mDNS] 发现节点 xxx`
+3. 定期显示训练统计信息（收敛度、参数变化等）
 
-或使用自定义配置：
+## 🛠️ 故障排除
 
-```bash
-# 模拟低端移动设备
-$env:GGB_DEVICE_TYPE="low"
-$env:GGB_NETWORK_TYPE="4g"
-$env:GGB_BATTERY_LEVEL="0.5"
-cargo run
-```
-
-## 查看实时统计
-
-训练过程中，每 10 个 tick 会输出类似以下信息：
-
-```
-训练统计 [运行 120s, 12 ticks] | 连接: 3 节点 | 接收: 15 稀疏 + 2 密集 | 发送: 12 稀疏 + 1 密集 | 模型: v45 (0x1a2b3c4d...)
-  收敛度: 0.623 | 参数变化: 0.000234 | 标准差: 0.045678
-```
-
-## 导出统计数据
-
-使用 `--stats-output` 参数：
-
-```bash
-cargo run -- --stats-output stats.json
-```
-
-统计数据会每 30 秒自动导出到指定文件。
-
-## 下一步
-
-- 阅读 [测试指南](TESTING.md) 了解详细测试场景
-- 查看 [Android 集成指南](../android/README.md) 了解移动端集成
-- 查看 [iOS 集成指南](../ios/README.md) 了解 iOS 集成
-
+- **编译失败**：确保安装了Rust和系统依赖
+- **连接失败**：检查防火墙设置和端口可用性
+- **发现延迟**：mDNS和DHT需要几秒到几十秒建立连接
+- **性能问题**：调整模型维度或训练频率

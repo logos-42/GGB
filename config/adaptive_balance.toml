@@ -1,0 +1,354 @@
+# GGB 自适应平衡配置模板
+# 此配置根据实时网络条件动态调整隐私和性能平衡
+
+[security]
+# 是否隐藏IP地址（自适应模式下根据条件调整）
+hide_ip = true
+
+# 是否使用中继网络（自适应模式下根据条件调整）
+use_relay = true
+
+# 中继节点列表（提供多个选项供自适应选择）
+relay_nodes = [
+    # 高性能中继（低延迟）
+    # "/ip4/203.0.113.50/tcp/9001/p2p/12D3KooWPerformanceRelay",
+    # 高隐私中继（多跳）
+    # "/ip4/198.51.100.25/tcp/9002/p2p/12D3KooWPrivacyRelay",
+    # 平衡中继
+    # "/ip4/192.0.2.100/tcp/9003/p2p/12D3KooWBalancedRelay",
+]
+
+# 最大中继跳数（自适应模式下动态调整）
+max_hops = 3
+
+# 是否启用自动NAT穿透
+enable_autonat = true
+
+# 是否启用直接连接升级（自适应模式下根据隐私需求调整）
+enable_dcutr = false
+
+# 隐私-性能平衡配置
+[security.privacy_performance]
+# 平衡模式：adaptive（自适应）
+mode = "adaptive"
+
+# 初始性能权重（自适应模式下会动态调整）
+performance_weight = 0.6
+
+# 是否启用硬件加速加密
+enable_hardware_acceleration = true
+
+# 连接池大小（自适应模式下动态调整）
+connection_pool_size = 12
+
+# 是否启用0-RTT连接
+enable_0rtt = true
+
+# 拥塞控制算法：bbr（自适应模式下推荐）
+congestion_control = "bbr"
+
+# 路由选择策略：smart_balance（智能平衡）
+routing_strategy = "smart_balance"
+
+# 最小隐私评分要求
+min_privacy_score = 0.6
+
+# 最小性能评分要求
+min_performance_score = 0.7
+
+# 是否允许回退到直接连接
+fallback_to_direct = true
+
+# 性能监控间隔（秒，自适应模式下可缩短）
+monitoring_interval_secs = 15
+
+[comms]
+# 通信主题
+topic = "ggb-training-adaptive"
+
+# 是否启用公共DHT（自适应模式下根据隐私需求调整）
+enable_dht = false
+
+# 监听地址
+listen_addr = "/ip4/127.0.0.1/tcp/0"
+
+# QUIC绑定地址
+quic_bind = "127.0.0.1:9234"
+
+# 引导节点文件
+bootstrap_peers_file = "adaptive_bootstrap_peers.txt"
+
+# 带宽预算配置（自适应模式下动态调整）
+[comms.bandwidth]
+# 稀疏更新每窗口数量（基础值，会动态调整）
+sparse_per_window = 15
+# 密集快照每窗口字节数（基础值，会动态调整）
+dense_bytes_per_window = 393216  # 384KB
+# 窗口秒数
+window_secs = 60
+
+[topology]
+# 最大邻居数量（自适应模式下动态调整）
+max_neighbors = 10
+# 故障转移池大小
+failover_pool = 5
+# 地理范围（公里）
+geo_scale_km = 400.0
+# 节点过期时间（秒）
+peer_stale_secs = 180
+
+[inference]
+# 模型维度
+model_dim = 384
+# 是否使用训练模式
+use_training = true
+# 学习率
+learning_rate = 0.001
+# 损失函数类型：MSE、MAE、CrossEntropy
+loss_type = "MSE"
+# 检查点目录
+checkpoint_dir = "./checkpoints/adaptive"
+
+[crypto]
+# 高性能加密配置
+[crypto.high_performance]
+# 默认加密算法：chacha20poly1305
+default_algorithm = "chacha20poly1305"
+# 是否启用硬件加速
+enable_hardware_acceleration = true
+# 是否启用零拷贝加密
+enable_zero_copy = true
+# 是否启用并行处理
+enable_parallel_processing = true
+# 批量处理大小（字节）
+batch_size_bytes = 1572864  # 1.5MB
+# 缓存大小（条目）
+cache_size = 1500
+
+# 选择性加密配置
+[crypto.selective]
+# 敏感数据模式列表
+sensitive_patterns = [
+    "password=",
+    "token=",
+    "secret=",
+    "private_key=",
+    "auth_token=",
+    "api_key=",
+]
+
+# 自适应学习配置
+[adaptive]
+# 是否启用学习功能
+learning_enabled = true
+
+# 学习算法参数
+[adaptive.learning]
+# 学习率（0.0-1.0）
+learning_rate = 0.1
+# 折扣因子（未来奖励的权重）
+discount_factor = 0.9
+# 探索率（尝试新策略的概率）
+exploration_rate = 0.2
+# 最小探索率
+min_exploration_rate = 0.05
+# 探索衰减率
+exploration_decay = 0.995
+
+# 状态特征配置
+[adaptive.features]
+# 是否包含网络延迟特征
+include_latency = true
+# 是否包含带宽特征
+include_bandwidth = true
+# 是否包含丢包率特征
+include_packet_loss = true
+# 是否包含抖动特征
+include_jitter = true
+# 是否包含CPU使用率特征
+include_cpu_usage = true
+# 是否包含内存使用率特征
+include_memory_usage = true
+# 是否包含电池电量特征（移动设备）
+include_battery_level = true
+# 是否包含网络类型特征
+include_network_type = true
+
+# 奖励函数配置
+[adaptive.reward]
+# 性能奖励权重
+performance_weight = 0.5
+# 隐私奖励权重
+privacy_weight = 0.4
+# 稳定性奖励权重
+stability_weight = 0.1
+# 性能阈值（毫秒，超过则惩罚）
+performance_threshold_ms = 50
+# 隐私阈值（评分，低于则惩罚）
+privacy_threshold = 0.6
+# 最大奖励值
+max_reward = 1.0
+# 最小奖励值
+min_reward = -1.0
+
+# 调整策略配置
+[adaptive.adjustment]
+# 调整灵敏度（0.0-1.0）
+sensitivity = 0.3
+# 最小调整间隔（秒）
+min_adjustment_interval_secs = 10
+# 最大调整幅度（百分比）
+max_adjustment_percent = 30.0
+# 平滑因子（防止剧烈变化）
+smoothing_factor = 0.7
+# 是否启用渐进调整
+enable_gradual_adjustment = true
+
+# 决策模型配置
+[adaptive.model]
+# 模型类型：q_learning、policy_gradient、random_forest
+model_type = "q_learning"
+# 状态空间大小
+state_space_size = 1000
+# 动作空间大小
+action_space_size = 50
+# 是否启用经验回放
+enable_experience_replay = true
+# 经验回放缓冲区大小
+replay_buffer_size = 10000
+# 批量大小（训练时）
+batch_size = 32
+# 目标网络更新频率（步数）
+target_update_frequency = 100
+
+# 性能监控配置
+[monitoring]
+# 是否启用实时监控
+enable_real_time_monitoring = true
+# 数据收集间隔（秒）
+collection_interval_secs = 5
+# 历史数据保留天数
+history_retention_days = 7
+# 是否启用异常检测
+enable_anomaly_detection = true
+# 异常检测阈值（标准差倍数）
+anomaly_threshold = 3.0
+
+# 性能指标配置
+[monitoring.metrics]
+# 是否收集延迟指标
+collect_latency = true
+# 是否收集吞吐量指标
+collect_throughput = true
+# 是否收集CPU使用率指标
+collect_cpu_usage = true
+# 是否收集内存使用率指标
+collect_memory_usage = true
+# 是否收集网络质量指标
+collect_network_quality = true
+# 是否收集隐私保护指标
+collect_privacy_metrics = true
+
+# 报警配置
+[monitoring.alerts]
+# 是否启用性能报警
+enable_performance_alerts = true
+# 性能报警阈值（毫秒）
+performance_alert_threshold_ms = 100
+# 是否启用隐私报警
+enable_privacy_alerts = true
+# 隐私报警阈值（评分）
+privacy_alert_threshold = 0.5
+# 报警冷却时间（秒）
+alert_cooldown_secs = 300
+
+# 自适应模式配置
+[adaptive.modes]
+# 可用模式列表
+available_modes = ["performance", "balanced", "privacy"]
+
+# 性能优先模式配置
+[adaptive.modes.performance]
+# 性能权重
+performance_weight = 0.8
+# 隐私权重
+privacy_weight = 0.2
+# 加密强度
+encryption_strength = 0.3
+# 是否启用混淆
+enable_obfuscation = false
+# 连接池大小
+connection_pool_size = 15
+
+# 平衡模式配置
+[adaptive.modes.balanced]
+# 性能权重
+performance_weight = 0.6
+# 隐私权重
+privacy_weight = 0.4
+# 加密强度
+encryption_strength = 0.6
+# 是否启用混淆
+enable_obfuscation = true
+# 连接池大小
+connection_pool_size = 12
+
+# 隐私优先模式配置
+[adaptive.modes.privacy]
+# 性能权重
+performance_weight = 0.3
+# 隐私权重
+privacy_weight = 0.7
+# 加密强度
+encryption_strength = 0.9
+# 是否启用混淆
+enable_obfuscation = true
+# 连接池大小
+connection_pool_size = 8
+
+# 条件触发配置
+[adaptive.triggers]
+# 网络条件触发
+[adaptive.triggers.network]
+# 高延迟触发阈值（毫秒）
+high_latency_threshold_ms = 100
+# 低带宽触发阈值（Mbps）
+low_bandwidth_threshold_mbps = 5.0
+# 高丢包率触发阈值（百分比）
+high_packet_loss_threshold_percent = 5.0
+
+# 设备条件触发
+[adaptive.triggers.device]
+# 高CPU使用率触发阈值（百分比）
+high_cpu_usage_threshold_percent = 80.0
+# 低内存触发阈值（百分比）
+low_memory_threshold_percent = 20.0
+# 低电池触发阈值（百分比，移动设备）
+low_battery_threshold_percent = 20.0
+
+# 隐私条件触发
+[adaptive.triggers.privacy]
+# 检测到网络监控触发
+network_monitoring_detected = true
+# 检测到流量分析触发
+traffic_analysis_detected = true
+# IP暴露风险触发
+ip_exposure_risk = true
+
+# 配置说明：
+# 1. 此配置支持完全自适应的隐私-性能平衡
+# 2. 基于实时网络和设备条件动态调整
+# 3. 使用强化学习优化决策
+# 4. 提供全面的监控和报警
+# 
+# 使用建议：
+# 1. 系统会自动学习最佳平衡策略
+# 2. 监控自适应调整效果
+# 3. 根据需求调整触发阈值
+# 4. 定期检查学习模型效果
+# 
+# 自适应特性：
+# 1. 根据网络质量调整隐私保护级别
+# 2. 根据设备资源调整性能优化
+# 3. 根据隐私风险动态增强保护
+# 4. 持续学习和优化平衡策略
