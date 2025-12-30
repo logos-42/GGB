@@ -2,6 +2,8 @@ use crate::consensus::SignedGossip;
 use crate::device::NetworkType;
 use anyhow::{anyhow, Result};
 use libp2p::{
+    autonat,
+    dcutr,
     gossipsub::{
         self, Behaviour as GossipsubBehaviour, Event as GossipsubEvent, IdentTopic as Topic,
         MessageAuthenticity, PublishError, ValidationMode,
@@ -9,6 +11,7 @@ use libp2p::{
     identity,
     kad::{store::MemoryStore, Kademlia, KademliaEvent},
     mdns::{self, tokio::Behaviour as Mdns, Event as MdnsEvent},
+    relay,
     swarm::{NetworkBehaviour, SwarmBuilder},
     Multiaddr, PeerId, Swarm,
 };
@@ -32,6 +35,7 @@ pub struct CommsConfig {
     pub bandwidth: BandwidthBudgetConfig,
     pub enable_dht: bool,
     pub bootstrap_peers_file: Option<PathBuf>,
+    pub security: crate::config::SecurityConfig,
 }
 
 impl Default for CommsConfig {
@@ -44,6 +48,7 @@ impl Default for CommsConfig {
             bandwidth: BandwidthBudgetConfig::default(),
             enable_dht: true,
             bootstrap_peers_file: None,
+            security: crate::config::SecurityConfig::default(),
         }
     }
 }
@@ -115,6 +120,9 @@ impl BandwidthBudget {
 #[behaviour(out_event = "OutEvent")]
 pub struct Behaviour {
     gossipsub: GossipsubBehaviour,
+    relay: relay::Behaviour,
+    autonat: autonat::Behaviour,
+    dcutr: dcutr::Behaviour,
     mdns: Mdns,
     kademlia: Kademlia<MemoryStore>,
 }
@@ -122,6 +130,9 @@ pub struct Behaviour {
 #[derive(Debug)]
 pub enum OutEvent {
     Gossipsub(GossipsubEvent),
+    Relay(relay::Event),
+    Autonat(autonat::Event),
+    Dcutr(dcutr::Event),
     Mdns(MdnsEvent),
     Kademlia(KademliaEvent),
 }
@@ -129,6 +140,24 @@ pub enum OutEvent {
 impl From<GossipsubEvent> for OutEvent {
     fn from(v: GossipsubEvent) -> Self {
         OutEvent::Gossipsub(v)
+    }
+}
+
+impl From<relay::Event> for OutEvent {
+    fn from(v: relay::Event) -> Self {
+        OutEvent::Relay(v)
+    }
+}
+
+impl From<autonat::Event> for OutEvent {
+    fn from(v: autonat::Event) -> Self {
+        OutEvent::Autonat(v)
+    }
+}
+
+impl From<dcutr::Event> for OutEvent {
+    fn from(v: dcutr::Event) -> Self {
+        OutEvent::Dcutr(v)
     }
 }
 
@@ -172,6 +201,15 @@ impl CommsHandle {
         gossipsub.subscribe(&topic)?;
         let mdns = Mdns::new(mdns::Config::default(), peer_id)?;
         
+        // 初始化中继客户端（根据配置决定是否有效使用）
+        let relay = relay::Behaviour::new(peer_id, relay::Config::default());
+        
+        // 初始化自动NAT
+        let autonat = autonat::Behaviour::new(peer_id, autonat::Config::default());
+        
+        // 初始化DCUtR（直接连接升级）
+        let dcutr = dcutr::Behaviour::new(peer_id);
+        
         // 初始化 Kademlia DHT
         let store = MemoryStore::new(peer_id);
         let kademlia = Kademlia::new(peer_id, store);
@@ -203,13 +241,20 @@ impl CommsHandle {
             }
         }
         
-        // 如果启用 DHT，开始 bootstrap
-        if config.enable_dht && !bootstrap_peers.is_empty() {
+        // 根据安全配置决定是否启用DHT
+        let enable_dht = config.enable_dht && !config.security.hide_ip;
+        if enable_dht && !bootstrap_peers.is_empty() {
+            println!("[安全] 启用公共DHT（IP可能暴露）");
             kademlia.bootstrap()?;
+        } else if config.security.hide_ip {
+            println!("[安全] 禁用公共DHT保护IP隐私");
         }
         
         let behaviour = Behaviour {
             gossipsub,
+            relay,
+            autonat,
+            dcutr,
             mdns,
             kademlia,
         };
@@ -291,6 +336,38 @@ impl CommsHandle {
             return quic.take_received_messages();
         }
         Vec::new()
+    }
+
+    /// 连接到中继节点
+    pub async fn connect_to_relay(&mut self, relay_addr: Multiaddr) -> Result<()> {
+        println!("[中继] 尝试连接到中继节点: {}", relay_addr);
+        
+        // 从地址中提取PeerId
+        let mut addr_clone = relay_addr.clone();
+        if let Some(protocol) = addr_clone.pop() {
+            if let Protocol::P2p(multihash) = protocol {
+                if let Ok(peer_id) = PeerId::from_multihash(multihash) {
+                    // 添加到swarm
+                    self.swarm
+                        .behaviour_mut()
+                        .relay
+                        .add_relay(&peer_id, relay_addr.clone())?;
+                    
+                    println!("[中继] 已添加中继节点: {}", peer_id);
+                    return Ok(());
+                }
+            }
+        }
+        
+        Err(anyhow!("无法从地址中提取有效的PeerId: {}", relay_addr))
+    }
+
+    /// 获取中继地址（用于其他节点连接）
+    pub fn get_relay_address(&self, target_peer_id: &PeerId) -> Option<Multiaddr> {
+        // 构建中继地址格式: /ip4/中继IP/tcp/端口/p2p/中继PeerId/p2p-circuit/p2p/目标PeerId
+        // 注意：这里需要实际的中继节点地址，目前返回None
+        // 在实际应用中，需要维护中继节点列表并选择合适的地址
+        None
     }
 }
 

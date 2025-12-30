@@ -9,6 +9,7 @@ use crate::topology::TopologySelector;
 use crate::types::{GeoPoint, GgbMessage};
 use anyhow::Result;
 use futures::StreamExt;
+use libp2p::{autonat, dcutr, relay};
 use libp2p::kad::KademliaEvent;
 use libp2p::swarm::SwarmEvent;
 use std::path::PathBuf;
@@ -341,6 +342,48 @@ impl Node {
                                 println!("[DHT] 其他查询结果: {:?}", result);
                             }
                         }
+                    }
+                    _ => {}
+                }
+            }
+            OutEvent::Relay(event) => {
+                match event {
+                    relay::Event::ReservationReqAccepted { .. } => {
+                        println!("[中继] 预留请求已接受");
+                    }
+                    relay::Event::ReservationReqDenied { .. } => {
+                        println!("[中继] 预留请求被拒绝");
+                    }
+                    relay::Event::CircuitReqAccepted { .. } => {
+                        println!("[中继] 电路请求已接受");
+                    }
+                    relay::Event::CircuitReqDenied { .. } => {
+                        println!("[中继] 电路请求被拒绝");
+                    }
+                    relay::Event::CircuitClosed { .. } => {
+                        println!("[中继] 电路已关闭");
+                    }
+                    _ => {}
+                }
+            }
+            OutEvent::Autonat(event) => {
+                match event {
+                    autonat::Event::StatusChanged { new_status, .. } => {
+                        println!("[自动NAT] 状态变更: {:?}", new_status);
+                    }
+                    _ => {}
+                }
+            }
+            OutEvent::Dcutr(event) => {
+                match event {
+                    dcutr::Event::Initiated { .. } => {
+                        println!("[DCUtR] 直接连接升级已初始化");
+                    }
+                    dcutr::Event::Upgraded { .. } => {
+                        println!("[DCUtR] 连接已升级为直接连接");
+                    }
+                    dcutr::Event::Failed { .. } => {
+                        println!("[DCUtR] 直接连接升级失败");
                     }
                     _ => {}
                 }

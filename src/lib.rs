@@ -14,6 +14,7 @@ pub mod device;
 pub mod ffi;
 pub mod inference;
 pub mod node;
+pub mod security;
 pub mod stats;
 pub mod topology;
 pub mod training;
