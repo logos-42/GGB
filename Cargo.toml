@@ -1,6 +1,6 @@
 [package]
 name = "GGB"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
@@ -63,10 +63,20 @@ sysinfo = { version = "0.29", default-features = true }
 battery = "0.7"
 libloading = "0.8"
 
+# WASM和零知识证明依赖
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = [] }
+nori = { version = "0.1", optional = true }
+serde-wasm-bindgen = { version = "0.4", optional = true }
+
 [features]
 default = []
 ffi = []
 blockchain = ["async-trait", "ethers", "ethers-core"]
+wasm = ["wasm-bindgen", "js-sys", "web-sys", "serde-wasm-bindgen"]
+workers = ["wasm", "nori"]
+zk_proof = ["nori"]
 
 # 为 Android 构建配置库类型
 [lib]
@@ -81,6 +91,25 @@ path = "examples/multi_node_test.rs"
 [[bin]]
 name = "analyze_training"
 path = "tools/analyze_training.rs"
+
+# WASM目标特定依赖
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+worker = { version = "0.1", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+# 开发依赖
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+# 发布配置优化
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"  # 优化WASM大小
+
+[profile.release.wasm]
+opt-level = "z"  # 最大优化WASM大小
+panic = "abort"  # 减少WASM大小
 
 
 

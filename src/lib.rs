@@ -13,6 +13,10 @@ pub mod consensus;
 pub mod training;
 pub mod inference;
 
+// 零知识证明模块
+#[cfg(feature = "zk_proof")]
+pub mod zk_proof;
+
 // 可选模块
 #[cfg(feature = "ffi")]
 pub mod ffi;
