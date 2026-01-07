@@ -2,39 +2,41 @@
 
 Write-Host "🔧 构建WASM目标..." -ForegroundColor Cyan
 
-# 检查wasm-bindgen-cli
+# 检查wasm-pack
 try {
-    $null = Get-Command wasm-bindgen -ErrorAction Stop
-    Write-Host "✅ wasm-bindgen已安装" -ForegroundColor Green
+    $null = Get-Command wasm-pack -ErrorAction Stop
+    Write-Host "✅ wasm-pack已安装" -ForegroundColor Green
 } catch {
-    Write-Host "📦 安装wasm-bindgen-cli..." -ForegroundColor Yellow
-    cargo install wasm-bindgen-cli
+    Write-Host "📦 安装wasm-pack..." -ForegroundColor Yellow
+    cargo install wasm-pack
 }
 
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ wasm-pack安装失败" -ForegroundColor Red
+    exit 1
+}
+
+# 保存当前目录
+$originalDir = Get-Location
+
+# 切换到wasm目录
+Set-Location -Path "$PSScriptRoot"
+
 # 创建输出目录
-New-Item -ItemType Directory -Force -Path "wasm/pkg" | Out-Null
+New-Item -ItemType Directory -Force -Path "pkg" | Out-Null
 
 # 构建WASM目标
 Write-Host "🚀 构建WASM..." -ForegroundColor Cyan
-cargo build --target wasm32-unknown-unknown --release --features wasm
+wasm-pack build --target web --out-dir pkg
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ WASM构建失败" -ForegroundColor Red
+    Set-Location -Path $originalDir
     exit 1
 }
 
-# 生成绑定
-Write-Host "🔗 生成WASM绑定..." -ForegroundColor Cyan
-wasm-bindgen `
-    --target web `
-    --out-dir wasm/pkg `
-    --out-name ggb_wasm `
-    target/wasm32-unknown-unknown/release/ggb.wasm
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ WASM绑定生成失败" -ForegroundColor Red
-    exit 1
-}
+# 返回原目录
+Set-Location -Path $originalDir
 
 Write-Host "✅ WASM构建完成！" -ForegroundColor Green
 Write-Host "📁 输出目录: wasm/pkg/" -ForegroundColor Yellow
