@@ -315,27 +315,28 @@ async fn test_device_capabilities() {
 
 #[tokio::test]
 async fn test_dht_bootstrap_loading() {
-    // 测试 DHT bootstrap 节点文件加载
+    // 测试 iroh bootstrap 节点文件加载
     use std::fs;
     use std::path::PathBuf;
-    
+
     let test_file = PathBuf::from("test_bootstrap_nodes.txt");
     let test_content = "/ip4/127.0.0.1/tcp/9001\n/ip4/127.0.0.1/tcp/9002\n";
-    
+
     // 创建测试文件
     fs::write(&test_file, test_content).unwrap();
-    
+
     // 测试加载
     let content = fs::read_to_string(&test_file).unwrap();
     let mut bootstrap_peers = Vec::new();
     for line in content.lines() {
-        if let Ok(addr) = line.trim().parse::<libp2p::Multiaddr>() {
+        // iroh 使用简单的 SocketAddr
+        if let Ok(addr) = line.trim().parse::<std::net::SocketAddr>() {
             bootstrap_peers.push(addr);
         }
     }
-    
+
     assert_eq!(bootstrap_peers.len(), 2);
-    
+
     // 清理
     fs::remove_file(&test_file).unwrap();
 }

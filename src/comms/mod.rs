@@ -1,21 +1,71 @@
-//! 通信模块 - 负责节点间的网络通信
-//! 
-//! 该模块包含以下子模块：
-//! - config: 通信配置和带宽预算管理
-//! - quic: QUIC网关实现
-//! - routing: 智能路由系统
-//! - libp2p: libp2p网络行为定义
+//! 通讯模块
+//!
+//! 使用 iroh 作为底层通讯协议
 
 pub mod config;
-pub mod quic;
+pub mod handle;
+pub mod iroh;
 pub mod routing;
-pub mod libp2p;
 
-// 重新导出主要类型
+// 重新导出常用类型
 pub use config::{CommsConfig, BandwidthBudgetConfig};
-pub use libp2p::{Behaviour, OutEvent};
-pub use routing::{RouteType, RouteQuality, RouteScore, RouteInfo, RouteSelection, RoutingError};
+pub use handle::{CommsHandle, IrohEvent, Topic};
+pub use iroh::QuicGateway;
+pub use routing::{RouteInfo, RouteQuality, RouteScore};
 
-// 主通信句柄
-mod handle;
-pub use handle::CommsHandle;
+use anyhow::Result;
+
+/// 网络配置
+#[derive(Debug, Clone)]
+pub struct NetworkConfig {
+    pub addr: std::net::SocketAddr,
+    pub enable_encryption: bool,
+}
+
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            addr: "0.0.0.0:0".parse().unwrap(),
+            enable_encryption: true,
+        }
+    }
+}
+
+/// 网络句柄
+pub struct NetworkHandle {
+    _placeholder: std::marker::PhantomData<()>,
+}
+
+impl NetworkHandle {
+    /// 创建新的网络句柄
+    pub async fn new(_config: NetworkConfig) -> Result<Self> {
+        // 模拟 iroh 网络句柄的创建
+        // 实际实现将取决于 iroh 的具体 API 版本
+        Ok(Self { _placeholder: std::marker::PhantomData })
+    }
+    
+    /// 获取节点ID
+    pub fn node_id(&self) -> String {  // 使用 String 代替 iroh::net::NodeId
+        // 返回模拟节点ID
+        "SIMULATED_NODE_ID".to_string()
+    }
+    
+    /// 关闭网络句柄
+    pub async fn shutdown(self) -> Result<()> {
+        // 模拟关闭操作
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_network_handle_creation() -> Result<()> {
+        let config = NetworkConfig::default();
+        let handle = NetworkHandle::new(config).await?;
+        handle.shutdown().await?;
+        Ok(())
+    }
+}

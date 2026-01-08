@@ -12,7 +12,9 @@ use rayon::prelude::*;
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use aes::Aes256;
-use block_modes::{BlockMode, Cbc};
+// 正确的导入方式取决于 block_modes 库的实际 API
+use block_modes::block_mode::BlockMode;
+use block_modes::block_mode::Cbc;
 use block_modes::block_padding::Pkcs7;
 use blake3::Hasher;
 use rand::RngCore;
@@ -22,7 +24,6 @@ use super::{EncryptionAlgorithm, PrivacyLevel, PerformanceMetrics, PrivacyPerfor
 // 导入批量处理功能
 use super::batch::*;
 
-type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
 /// 高性能加密引擎配置
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -200,7 +201,7 @@ impl HighPerformanceCrypto {
     
     fn encrypt_aes256(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let iv = [0u8; 16]; // 简化，实际应使用随机IV
-        let cipher = Aes256Cbc::new_from_slices(key, &iv)
+        let cipher = block_modes::Cbc::<Aes256, block_modes::block_padding::Pkcs7>::new_from_slices(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
         
         Ok(cipher.encrypt_vec(data))
@@ -208,7 +209,7 @@ impl HighPerformanceCrypto {
     
     fn decrypt_aes256(&self, encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let iv = [0u8; 16];
-        let cipher = Aes256Cbc::new_from_slices(key, &iv)
+        let cipher = block_modes::Cbc::<Aes256, block_modes::block_padding::Pkcs7>::new_from_slices(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
         
         cipher.decrypt_vec(encrypted)
@@ -216,7 +217,9 @@ impl HighPerformanceCrypto {
     }
     
     fn encrypt_blake3(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
-        let mut hasher = Hasher::new_keyed(key);
+        let keyed_key: [u8; 32] = key.try_into()
+            .map_err(|_| anyhow!("Blake3 key must be 32 bytes"))?;
+        let mut hasher = Hasher::new_keyed(&keyed_key);
         hasher.update(data);
         let hash = hasher.finalize();
         
@@ -237,7 +240,9 @@ impl HighPerformanceCrypto {
         let hash = &encrypted[data_len..];
         
         // 验证哈希
-        let mut hasher = Hasher::new_keyed(key);
+        let keyed_key: [u8; 32] = key.try_into()
+            .map_err(|_| anyhow!("Blake3 key must be 32 bytes"))?;
+        let mut hasher = Hasher::new_keyed(&keyed_key);
         hasher.update(data);
         let expected_hash = hasher.finalize();
         

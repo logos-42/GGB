@@ -3,13 +3,14 @@
 //! 提供高性能、可配置的加密功能，支持多种算法和硬件加速。
 
 mod algorithms;
-mod engine;
-mod hardware;
+// mod engine;  // 移除不必要的模块
+// mod hardware;  // 移除不必要的模块
 
 // 重新导出公共接口
 pub use algorithms::*;
-pub use engine::*;
-pub use hardware::*;
+
+#[cfg(feature = "zk_proof")]
+pub use crate::zk::*;
 
 /// 加密算法枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

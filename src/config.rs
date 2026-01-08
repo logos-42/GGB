@@ -6,14 +6,14 @@ use crate::inference::InferenceConfig;
 use crate::topology::TopologyConfig;
 use crate::inference::LossType;
 use anyhow::anyhow;
-use libp2p::Multiaddr;
+use iroh::NodeAddr;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SecurityConfig {
     pub hide_ip: bool,
     pub use_relay: bool,
-    pub relay_nodes: Vec<Multiaddr>,
+    pub relay_nodes: Vec<NodeAddr>,
     pub private_network_key: Option<String>,
     pub max_hops: u8,
     pub enable_autonat: bool,
@@ -306,8 +306,8 @@ impl AppConfig {
         let bandwidth_factor = network_type.bandwidth_factor();
         let comms = CommsConfig {
             topic: "ggb-training".into(),
-            // 使用随机可用端口监听，启用 mDNS 节点发现
-            listen_addr: Some("/ip4/0.0.0.0/tcp/0".parse().unwrap()),
+            // 使用随机可用端口监听
+            listen_addr: Some("0.0.0.0:0".parse().unwrap()),
             quic_bind: Some(std::net::SocketAddr::new(
                 std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
                 9234,

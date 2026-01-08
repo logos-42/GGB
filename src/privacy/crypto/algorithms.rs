@@ -6,15 +6,15 @@ use anyhow::{anyhow, Result};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use aes::Aes256;
-use block_modes::{BlockMode, Cbc};
+use block_modes::block_mode::BlockMode;
+use block_modes::block_mode::Cbc;
 use block_modes::block_padding::Pkcs7;
-use blake3::Hasher;
+use blake3;
 use rand::RngCore;
 use zeroize::Zeroize;
 
 use super::EncryptionAlgorithm;
 
-type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
 /// 加密密钥
 #[derive(Clone)]
@@ -146,7 +146,7 @@ impl Encryptor for Aes256CbcEncryptor {
         let mut iv = [0u8; 16];
         rand::thread_rng().fill_bytes(&mut iv);
         
-        let cipher = Aes256Cbc::new_from_slices(key.as_bytes(), &iv)
+        let cipher = block_modes::Cbc::<Aes256, block_modes::block_padding::Pkcs7>::new_from_slices(key.as_bytes(), &iv)
             .map_err(|e| anyhow!("Failed to create cipher: {}", e))?;
         
         let ciphertext = cipher.encrypt_vec(plaintext);
@@ -170,7 +170,7 @@ impl Encryptor for Aes256CbcEncryptor {
             return Err(anyhow!("Invalid IV size: expected 16, got {}", iv.len()));
         }
         
-        let cipher = Aes256Cbc::new_from_slices(key.as_bytes(), iv)
+        let cipher = block_modes::Cbc::<Aes256, block_modes::block_padding::Pkcs7>::new_from_slices(key.as_bytes(), iv)
             .map_err(|e| anyhow!("Failed to create cipher: {}", e))?;
         
         let plaintext = cipher.decrypt_vec(&encrypted.ciphertext)
@@ -189,7 +189,9 @@ impl Encryptor for Blake3Encryptor {
             return Err(anyhow!("Invalid key algorithm for Blake3"));
         }
         
-        let mut hasher = Hasher::new_keyed(key.as_bytes());
+        let mut hasher = blake3::Hasher::new_keyed(&<[u8; 32]>::try_from(key.as_bytes())
+            .map_err(|e| anyhow!("Invalid key length for Blake3: {}", e))?
+        );
         hasher.update(plaintext);
         let hash = hasher.finalize();
         
@@ -210,8 +212,10 @@ impl Encryptor for Blake3Encryptor {
     }
     
     fn decrypt(&self, encrypted: &EncryptedData, key: &CryptoKey) -> Result<Vec<u8>> {
-        // Blake3 是对称的，解密与加密相同
-        self.encrypt(&encrypted.ciphertext, key)
+        // Blake3 是哈希函数，不适合直接用作加密算法
+        // 对于哈希加密，解密实际上是不可能的
+        // 我们在这里只是演示如何处理这种情况
+        Err(anyhow!("Blake3 is a hash function and cannot be decrypted"))
     }
 }
 
@@ -226,5 +230,63 @@ impl EncryptorFactory {
             EncryptionAlgorithm::Aes256Cbc => Box::new(Aes256CbcEncryptor),
             EncryptionAlgorithm::Blake3 => Box::new(Blake3Encryptor),
         }
+    }
+}
+
+/// 加密指标
+#[derive(Debug, Clone)]
+pub struct CryptoMetrics {
+    /// 加密延迟（毫秒）
+    pub encryption_latency_ms: f64,
+    /// 解密延迟（毫秒）
+    pub decryption_latency_ms: f64,
+    /// 吞吐量（MB/s）
+    pub throughput_mbps: f64,
+    /// CPU 使用率（%）
+    pub cpu_usage_percent: f64,
+    /// 内存使用（MB）
+    pub memory_usage_mb: f64,
+}
+
+/// 加密引擎
+pub struct CryptoEngine {
+    algorithm: EncryptionAlgorithm,
+    metrics: Option<CryptoMetrics>,
+}
+
+impl CryptoEngine {
+    /// 创建新的加密引擎
+    pub fn new(algorithm: EncryptionAlgorithm) -> Self {
+        Self {
+            algorithm,
+            metrics: None,
+        }
+    }
+
+    /// 加密数据
+    pub fn encrypt(&self, data: &[u8], key: &CryptoKey) -> Result<EncryptedData> {
+        let encryptor = EncryptorFactory::create(self.algorithm);
+        encryptor.encrypt(data, key)
+    }
+    
+    /// 解密数据
+    pub fn decrypt(&self, encrypted: &EncryptedData, key: &CryptoKey) -> Result<Vec<u8>> {
+        let encryptor = EncryptorFactory::create(self.algorithm);
+        encryptor.decrypt(encrypted, key)
+    }
+
+    /// 获取当前算法
+    pub fn algorithm(&self) -> EncryptionAlgorithm {
+        self.algorithm
+    }
+
+    /// 设置性能指标
+    pub fn set_metrics(&mut self, metrics: CryptoMetrics) {
+        self.metrics = Some(metrics);
+    }
+
+    /// 获取性能指标
+    pub fn metrics(&self) -> Option<&CryptoMetrics> {
+        self.metrics.as_ref()
     }
 }

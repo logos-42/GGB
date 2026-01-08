@@ -1,4 +1,4 @@
-use crate::comms::{CommsHandle, OutEvent};
+use crate::comms::{CommsHandle, IrohEvent};
 use crate::config::AppConfig;
 use crate::consensus::{ConsensusEngine, SignedGossip};
 use crate::crypto::CryptoSuite;
@@ -9,9 +9,7 @@ use crate::topology::TopologySelector;
 use crate::types::{GeoPoint, GgbMessage};
 use anyhow::Result;
 use futures::StreamExt;
-use libp2p::{autonat, dcutr, relay};
-use libp2p::kad::KademliaEvent;
-use libp2p::swarm::SwarmEvent;
+use iroh::NodeId;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
@@ -65,8 +63,8 @@ impl Node {
         let stats = Arc::new(TrainingStatsManager::new(model_hash.clone(), model_version));
 
         println!(
-            "启动 GGB 节点 => peer: {}, eth {}, sol {} @ ({:.2},{:.2})",
-            comms.peer_id,
+            "启动 GGB 节点 => node: {}, eth {}, sol {} @ ({:.2},{:.2})",
+            comms.node_id(),
             crypto_suite.eth_address(),
             crypto_suite.sol_address(),
             geo.lat,
@@ -119,9 +117,9 @@ impl Node {
             }
 
             tokio::select! {
-                event = self.comms.swarm.select_next_some() => {
-                    if let SwarmEvent::Behaviour(out) = event {
-                        self.handle_network_event(out).await?;
+                event = self.comms.next_event() => {
+                    if let Some(event) = event {
+                        self.handle_network_event(event).await?;
                     }
                 }
                 _ = ticker.tick() => {
@@ -188,7 +186,7 @@ impl Node {
         self.stats.update_model(hash.clone(), version);
 
         let heartbeat = GgbMessage::Heartbeat {
-            peer: self.comms.peer_id.to_string(),
+            peer: self.comms.node_id().to_string(),
             model_hash: hash,
         };
         self.publish_signed(heartbeat).await?;
@@ -198,7 +196,7 @@ impl Node {
         let probe = GgbMessage::SimilarityProbe {
             embedding,
             position: self.topology.position(),
-            sender: self.comms.peer_id.to_string(),
+            sender: self.comms.node_id().to_string(),
         };
         self.publish_signed(probe).await?;
         self.stats.record_probe_sent();
@@ -245,148 +243,35 @@ impl Node {
         Ok(())
     }
 
-    async fn handle_network_event(&mut self, event: OutEvent) -> Result<()> {
+    async fn handle_network_event(&mut self, event: IrohEvent) -> Result<()> {
         match event {
-            OutEvent::Gossipsub(g) => {
-                if let libp2p::gossipsub::Event::Message {
-                    propagation_source,
-                    message,
-                    ..
-                } = g
-                {
-                    if let Ok(signed) = serde_json::from_slice::<SignedGossip>(&message.data) {
-                        if self.consensus.verify(&signed) {
-                            self.handle_signed_message(signed, propagation_source.to_string())
-                                .await?;
-                        } else {
-                            eprintln!("签名验证失败，来自 {:?}", propagation_source);
-                        }
+            IrohEvent::Gossip { source, data } => {
+                if let Ok(signed) = serde_json::from_slice::<SignedGossip>(&data) {
+                    if self.consensus.verify(&signed) {
+                        self.handle_signed_message(signed, source.to_string())
+                            .await?;
+                    } else {
+                        eprintln!("签名验证失败，来自 {:?}", source);
                     }
                 }
             }
-            OutEvent::Mdns(event) => {
-                match event {
-                    libp2p::mdns::Event::Discovered(peers) => {
-                        for (peer, addr) in peers {
-                            println!("[mDNS] 发现节点 {} @ {}", peer, addr);
-                            // 将发现的节点添加到 gossipsub
-                            self.comms.add_peer(&peer);
-                        }
-                    }
-                    libp2p::mdns::Event::Expired(peers) => {
-                        for (peer, addr) in peers {
-                            println!("[mDNS] 节点离线 {} @ {}", peer, addr);
-                            self.comms.remove_peer(&peer);
-                        }
-                    }
-                }
+            IrohEvent::PeerDiscovered { peer, addr } => {
+                println!("[Iroh] 发现节点 {} @ {}", peer, addr);
+                // 将发现的节点添加到订阅列表
+                self.comms.add_peer(peer);
             }
-            OutEvent::Kademlia(event) => {
-                match event {
-                    KademliaEvent::RoutingUpdated { peer, .. } => {
-                        println!("[DHT] 路由更新: {}", peer);
-                        self.comms.add_peer(&peer);
-                    }
-                    KademliaEvent::RoutablePeer { peer, .. } => {
-                        println!("[DHT] 发现可路由节点: {}", peer);
-                        self.comms.add_peer(&peer);
-                    }
-                    KademliaEvent::PendingRoutablePeer { peer, .. } => {
-                        println!("[DHT] 待处理可路由节点: {}", peer);
-                    }
-                    KademliaEvent::OutboundQueryProgressed { result, .. } => {
-                        match result {
-                            libp2p::kad::QueryResult::Bootstrap(ok_result) => {
-                                match ok_result {
-                                    Ok(ok) => {
-                                        if ok.num_remaining == 0 {
-                                            println!("[DHT] Bootstrap 完成，发现 {} 个节点", ok.num_remaining);
-                                        }
-                                    }
-                                    Err(e) => {
-                                        eprintln!("[DHT] Bootstrap 错误: {:?}", e);
-                                    }
-                                }
-                            }
-                            libp2p::kad::QueryResult::GetProviders(providers_result) => {
-                                match providers_result {
-                                    Ok(providers) => {
-                                        println!("[DHT] 获取到提供者: {:?}", providers);
-                                        // GetProvidersOk 可能包含 providers 字段或其他结构
-                                        // 暂时使用 Debug 输出，后续可根据实际结构调整
-                                    }
-                                    Err(e) => {
-                                        eprintln!("[DHT] GetProviders 错误: {:?}", e);
-                                    }
-                                }
-                            }
-                            libp2p::kad::QueryResult::GetRecord(record_result) => {
-                                match record_result {
-                                    Ok(record) => {
-                                        println!("[DHT] 获取到记录: {:?}", record);
-                                        // GetRecordOk 可能包含 record 字段或其他结构
-                                        // 暂时使用 Debug 输出，后续可根据实际结构调整
-                                    }
-                                    Err(e) => {
-                                        eprintln!("[DHT] GetRecord 错误: {:?}", e);
-                                    }
-                                }
-                            }
-                            libp2p::kad::QueryResult::PutRecord(key) => {
-                                println!("[DHT] 存储记录: {:?}", key);
-                            }
-                            libp2p::kad::QueryResult::StartProviding(key) => {
-                                println!("[DHT] 开始提供服务: {:?}", key);
-                            }
-                            _ => {
-                                println!("[DHT] 其他查询结果: {:?}", result);
-                            }
-                        }
-                    }
-                    _ => {}
-                }
+            IrohEvent::PeerExpired { peer } => {
+                println!("[Iroh] 节点离线 {}", peer);
+                self.comms.remove_peer(&peer);
             }
-            OutEvent::Relay(event) => {
-                match event {
-                    relay::Event::ReservationReqAccepted { .. } => {
-                        println!("[中继] 预留请求已接受");
-                    }
-                    relay::Event::ReservationReqDenied { .. } => {
-                        println!("[中继] 预留请求被拒绝");
-                    }
-                    relay::Event::CircuitReqAccepted { .. } => {
-                        println!("[中继] 电路请求已接受");
-                    }
-                    relay::Event::CircuitReqDenied { .. } => {
-                        println!("[中继] 电路请求被拒绝");
-                    }
-                    relay::Event::CircuitClosed { .. } => {
-                        println!("[中继] 电路已关闭");
-                    }
-                    _ => {}
-                }
+            IrohEvent::ConnectionEstablished { peer } => {
+                println!("[Iroh] 连接建立: {}", peer);
+                // 连接建立后，可以添加到订阅列表
+                self.comms.add_peer(peer);
             }
-            OutEvent::Autonat(event) => {
-                match event {
-                    autonat::Event::StatusChanged { new_status, .. } => {
-                        println!("[自动NAT] 状态变更: {:?}", new_status);
-                    }
-                    _ => {}
-                }
-            }
-            OutEvent::Dcutr(event) => {
-                match event {
-                    dcutr::Event::Initiated { .. } => {
-                        println!("[DCUtR] 直接连接升级已初始化");
-                    }
-                    dcutr::Event::Upgraded { .. } => {
-                        println!("[DCUtR] 连接已升级为直接连接");
-                    }
-                    dcutr::Event::Failed { .. } => {
-                        println!("[DCUtR] 直接连接升级失败");
-                    }
-                    _ => {}
-                }
+            IrohEvent::ConnectionClosed { peer } => {
+                println!("[Iroh] 连接断开: {}", peer);
+                self.comms.remove_peer(&peer);
             }
         }
         Ok(())
@@ -439,7 +324,7 @@ impl Node {
                         let update = self.inference.make_sparse_update(16);
                         let msg = GgbMessage::SparseUpdate {
                             update,
-                            sender: self.comms.peer_id.to_string(),
+                            sender: self.comms.node_id().to_string(),
                         };
                         self.publish_signed(msg).await?;
                         self.stats.record_sparse_update_sent(sender);
@@ -503,7 +388,7 @@ impl Node {
         if self.comms.allow_dense_snapshot(bytes) {
             let msg = GgbMessage::DenseSnapshot {
                 snapshot,
-                sender: self.comms.peer_id.to_string(),
+                sender: self.comms.node_id().to_string(),
             };
             self.publish_signed(msg).await?;
             self.stats.record_dense_snapshot_sent();

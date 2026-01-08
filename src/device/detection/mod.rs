@@ -2,12 +2,9 @@
 //! 
 //! 提供跨平台的设备能力检测功能。
 
-mod platform;
-mod capabilities;
-
-// 重新导出公共接口
-pub use platform::*;
-pub use capabilities::*;
+use crate::device::platform;
+use crate::device::capabilities::DeviceCapabilities;
+use crate::device::types::{DeviceType, GpuComputeApi, NetworkType};
 
 /// 设备检测器
 pub struct DeviceDetector;
@@ -61,10 +58,10 @@ impl DeviceDetector {
     
     /// 检测 CPU 架构
     fn detect_cpu_architecture() -> String {
-        use sysinfo::{System, SystemExt, CpuExt};
+        use sysinfo::System;
         
         let mut system = System::default();
-        system.refresh_cpu();
+        system.refresh_cpu_usage();
         
         // 尝试获取 CPU 品牌字符串
         if let Some(cpu) = system.cpus().first() {
@@ -80,21 +77,21 @@ impl DeviceDetector {
     
     /// 检测 GPU 计算 API
     fn detect_gpu_apis() -> Vec<GpuComputeApi> {
-        platform::detect_gpu_apis()
+        crate::device::platform::detect_gpu_apis()
     }
     
     /// 检测 TPU/NPU 支持
     fn detect_tpu() -> Option<bool> {
-        platform::detect_tpu()
+        crate::device::platform::detect_tpu()
     }
     
     /// 检测内存和 CPU 核心数
     fn detect_memory_and_cpu() -> (u64, u32) {
-        use sysinfo::{System, SystemExt};
+        use sysinfo::System;
         
         let mut system = System::default();
         system.refresh_memory();
-        system.refresh_cpu();
+        system.refresh_cpu_usage();
         
         let max_memory_mb = system.total_memory() / 1024;
         let cpu_cores = system.cpus().len() as u32;
@@ -104,11 +101,12 @@ impl DeviceDetector {
     
     /// 检测网络类型
     fn detect_network_type() -> NetworkType {
-        platform::detect_network_type()
+        crate::device::platform::detect_network_type()
     }
     
     /// 检测电池状态
     fn detect_battery() -> (Option<f32>, Option<bool>) {
-        platform::detect_battery()
+        let (level, is_charging) = platform::detect_battery();
+        (level, Some(is_charging))
     }
 }

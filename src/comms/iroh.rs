@@ -1,20 +1,17 @@
-//! QUIC网关模块
-//! 
-//! 提供基于QUIC协议的高性能实时通信
+//! Iroh网关模块
+//!
+//! 提供基于 iroh 的高性能实时通信
 
 use anyhow::{anyhow, Result};
 use parking_lot::RwLock;
-use quinn::{Endpoint, ServerConfig};
-use rcgen::generate_simple_self_signed;
-use rustls::{Certificate, PrivateKey};
-use std::net::SocketAddr;
+use iroh::{Endpoint, NodeAddr, endpoint::Connection};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::time::interval;
 
 use crate::consensus::SignedGossip;
 
-/// QUIC网关
+/// Iroh网关
 pub(crate) struct QuicGateway {
     endpoint: Endpoint,
     connections: Arc<RwLock<Vec<ConnectionInfo>>>,
@@ -23,13 +20,13 @@ pub(crate) struct QuicGateway {
 
 /// 连接信息
 struct ConnectionInfo {
-    connection: quinn::Connection,
+    connection: Connection,
     last_health_check: Instant,
     consecutive_failures: u32,
 }
 
 impl ConnectionInfo {
-    fn new(connection: quinn::Connection) -> Self {
+    fn new(connection: Connection) -> Self {
         Self {
             connection,
             last_health_check: Instant::now(),
@@ -52,43 +49,14 @@ impl ConnectionInfo {
     }
 }
 
-/// 跳过服务器验证（用于自签名证书）
-struct SkipServerVerification;
-
-impl rustls::client::ServerCertVerifier for SkipServerVerification {
-    fn verify_server_cert(
-        &self,
-        _end_entity: &rustls::Certificate,
-        _intermediates: &[rustls::Certificate],
-        _server_name: &rustls::ServerName,
-        _scts: &mut dyn Iterator<Item = &[u8]>,
-        _ocsp_response: &[u8],
-        _now: std::time::SystemTime,
-    ) -> std::result::Result<rustls::client::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::ServerCertVerified::assertion())
-    }
-}
-
 impl QuicGateway {
-    pub(crate) fn new(bind: SocketAddr) -> Result<Self> {
-        let cert = generate_simple_self_signed(vec!["ggb-quic".into()])?;
-        let cert_der = cert.serialize_der()?;
-        let key_der = cert.serialize_private_key_der();
-        
-        let mut server_config = ServerConfig::with_single_cert(
-            vec![Certificate(cert_der.clone())],
-            PrivateKey(key_der.clone()),
-        )?;
-        server_config.transport = Arc::new(quinn::TransportConfig::default());
-        
-        let client_crypto = rustls::ClientConfig::builder()
-            .with_safe_defaults()
-            .with_custom_certificate_verifier(Arc::new(SkipServerVerification))
-            .with_no_client_auth();
-        let client_config = quinn::ClientConfig::new(Arc::new(client_crypto));
-        
-        let mut endpoint = Endpoint::server(server_config, bind)?;
-        endpoint.set_default_client_config(client_config);
+    pub(crate) fn new(bind: std::net::SocketAddr) -> Result<Self> {
+        // 使用 iroh 创建 endpoint
+        let endpoint = Endpoint::builder()
+            .bind_addr(bind)
+            .spawn()
+            .map_err(|e| anyhow!("创建 iroh endpoint 失败: {:?}", e))?;
+
         let connections = Arc::new(RwLock::new(Vec::new()));
         let received_messages = Arc::new(RwLock::new(Vec::new()));
         
@@ -99,20 +67,21 @@ impl QuicGateway {
         tokio::spawn(async move {
             loop {
                 match accept_endpoint.accept().await {
-                    Some(connecting) => match connecting.await {
+                    Ok(connecting) => match connecting.await {
                         Ok(conn) => {
-                            println!("[QUIC] 接受来自 {} 的连接", conn.remote_address());
+                            println!("[Iroh] 接受来自 {:?} 的连接", conn.remote_addr());
                             accept_pool.write().push(ConnectionInfo::new(conn.clone()));
                             let msg_queue = accept_messages.clone();
-                            let remote = conn.remote_address();
+                            let conn_id = conn.remote_addr();
                             tokio::spawn(async move {
                                 loop {
+                                    // 从连接接收数据
                                     match conn.accept_uni().await {
                                         Ok(mut recv) => {
                                             match recv.read_to_end(1024 * 1024).await {
                                                 Ok(buf) => {
                                                     if let Ok(signed) = serde_json::from_slice::<SignedGossip>(&buf) {
-                                                        println!("[QUIC] 收到消息 from {}", remote);
+                                                        println!("[Iroh] 收到消息 from {:?}", conn_id);
                                                         msg_queue.write().push(signed);
                                                     }
                                                 }
@@ -124,9 +93,12 @@ impl QuicGateway {
                                 }
                             });
                         }
-                        Err(err) => eprintln!("[QUIC] accept error: {err:?}"),
+                        Err(err) => eprintln!("[Iroh] accept error: {err:?}"),
                     },
-                    None => tokio::time::sleep(Duration::from_secs(1)).await,
+                    Err(err) => {
+                        eprintln!("[Iroh] accept 等待错误: {err:?}");
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
                 }
             }
         });
@@ -134,18 +106,15 @@ impl QuicGateway {
         // 启动健康检查任务
         let health_check_connections = connections.clone();
         tokio::spawn(async move {
-            let mut health_check_interval = interval(Duration::from_secs(30));
+            let mut health_check_interval = interval(std::time::Duration::from_secs(30));
             loop {
                 health_check_interval.tick().await;
                 let mut conns = health_check_connections.write();
                 conns.retain_mut(|info| {
-                    if info.connection.close_reason().is_some() {
-                        return false;
-                    }
                     // 如果连接仍然活跃且健康，标记为成功
-                    if info.connection.close_reason().is_none() && info.is_healthy() {
+                    if info.is_healthy() {
                         info.mark_success();
-                    } else if info.last_health_check.elapsed() > Duration::from_secs(300) {
+                    } else if info.last_health_check.elapsed() > std::time::Duration::from_secs(300) {
                         info.mark_failure();
                     }
                     info.is_healthy()
@@ -160,43 +129,45 @@ impl QuicGateway {
         })
     }
 
-    pub(crate) async fn connect(&self, addr: SocketAddr) -> Result<()> {
-        println!("[QUIC] 尝试连接到 {}", addr);
-        match self.endpoint.connect(addr, "ggb-quic") {
-            Ok(connecting) => match connecting.await {
-                Ok(connection) => {
-                    println!("[QUIC] 成功连接到 {}", addr);
-                    self.connections.write().push(ConnectionInfo::new(connection.clone()));
-                    
-                    let msg_queue = self.received_messages.clone();
-                    tokio::spawn(async move {
-                        loop {
-                            match connection.accept_uni().await {
-                                Ok(mut recv) => {
-                                    match recv.read_to_end(1024 * 1024).await {
-                                        Ok(buf) => {
-                                            if let Ok(signed) = serde_json::from_slice::<SignedGossip>(&buf) {
-                                                println!("[QUIC] 收到消息 from {}", connection.remote_address());
-                                                msg_queue.write().push(signed);
-                                            }
+    pub(crate) async fn connect(&self, addr: std::net::SocketAddr) -> Result<()> {
+        println!("[Iroh] 尝试连接到 {}", addr);
+
+        // 创建 NodeAddr
+        let node_addr = NodeAddr::from(addr);
+
+        // 使用 ALPN 协议
+        let alpn = b"ggb-iroh";
+
+        match self.endpoint.connect(node_addr, alpn).await {
+            Ok(connection) => {
+                println!("[Iroh] 成功连接到 {}", addr);
+                self.connections.write().push(ConnectionInfo::new(connection.clone()));
+
+                let msg_queue = self.received_messages.clone();
+                let conn_id = connection.remote_addr();
+                tokio::spawn(async move {
+                    loop {
+                        match connection.accept_uni().await {
+                            Ok(mut recv) => {
+                                match recv.read_to_end(1024 * 1024).await {
+                                    Ok(buf) => {
+                                        if let Ok(signed) = serde_json::from_slice::<SignedGossip>(&buf) {
+                                            println!("[Iroh] 收到消息 from {:?}", conn_id);
+                                            msg_queue.write().push(signed);
                                         }
-                                        Err(_) => continue,
                                     }
+                                    Err(_) => continue,
                                 }
-                                Err(_) => break,
                             }
+                            Err(_) => break,
                         }
-                    });
-                    Ok(())
-                }
-                Err(err) => {
-                    println!("[QUIC] 连接 {} 失败: {:?}", addr, err);
-                    Err(err.into())
-                }
-            },
+                    }
+                });
+                Ok(())
+            }
             Err(err) => {
-                println!("[QUIC] 无法启动连接到 {}: {:?}", addr, err);
-                Err(err.into())
+                println!("[Iroh] 连接 {} 失败: {:?}", addr, err);
+                Err(anyhow!("连接失败: {:?}", err))
             }
         }
     }
@@ -211,7 +182,7 @@ impl QuicGateway {
             Err(_) => return false,
         };
         
-        let entries: Vec<(quinn::Connection, usize)> = {
+        let entries: Vec<(Connection, usize)> = {
             let guard = self.connections.read();
             guard
                 .iter()
@@ -223,8 +194,8 @@ impl QuicGateway {
         
         let mut success = false;
         let mut failed_indices = Vec::new();
-        
         let mut success_indices = Vec::new();
+        
         for (conn, idx) in entries {
             match conn.open_uni().await {
                 Ok(mut send) => {

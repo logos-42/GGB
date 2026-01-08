@@ -1,21 +1,17 @@
 //! 传输层模块
-//! 
-//! 提供多种传输协议的统一接口。
+//!
+//! 基于 iroh 提供统一的传输接口
 
-mod quic;
-mod libp2p;
+mod iroh;
 
 // 重新导出公共接口
-pub use quic::*;
-pub use libp2p::*;
+pub use iroh::*;
 
 /// 传输协议类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TransportType {
-    /// QUIC 协议
-    Quic,
-    /// libp2p 协议
-    Libp2p,
+    /// Iroh 协议
+    Iroh,
 }
 
 /// 传输配置
@@ -36,7 +32,7 @@ pub struct TransportConfig {
 impl Default for TransportConfig {
     fn default() -> Self {
         Self {
-            transport_type: TransportType::Quic,
+            transport_type: TransportType::Iroh,
             listen_addr: "0.0.0.0:0".to_string(),
             max_connections: 100,
             enable_tls: true,
@@ -49,10 +45,10 @@ impl Default for TransportConfig {
 pub trait Transport: Send + Sync {
     /// 发送消息
     async fn send(&self, route: &RouteInfo, message: &[u8]) -> anyhow::Result<()>;
-    
+
     /// 接收消息
     async fn receive(&self) -> anyhow::Result<(String, Vec<u8>)>;
-    
+
     /// 获取传输统计信息
     fn get_stats(&self) -> TransportStats;
 }
@@ -79,23 +75,14 @@ pub struct TransportStats {
 /// 创建传输实例
 pub async fn create_transport(config: &TransportConfig) -> anyhow::Result<Box<dyn Transport>> {
     match config.transport_type {
-        TransportType::Quic => {
-            let quic_config = QuicConfig {
+        TransportType::Iroh => {
+            let iroh_config = IrohConfig {
                 listen_addr: config.listen_addr.clone(),
                 max_connections: config.max_connections,
                 enable_tls: config.enable_tls,
                 enable_compression: config.enable_compression,
             };
-            Ok(Box::new(QuicTransport::new(quic_config).await?))
-        }
-        TransportType::Libp2p => {
-            let libp2p_config = Libp2pConfig {
-                listen_addr: config.listen_addr.clone(),
-                max_connections: config.max_connections,
-                enable_tls: config.enable_tls,
-                enable_compression: config.enable_compression,
-            };
-            Ok(Box::new(Libp2pTransport::new(libp2p_config).await?))
+            Ok(Box::new(IrohTransport::new(iroh_config).await?))
         }
     }
 }

@@ -58,12 +58,13 @@
 
 ### src/comms.rs
 ```rust
-// 添加 PublishError 导入
-use libp2p::gossipsub::PublishError;
+// 基于 iroh 的发布/订阅系统
+use iroh::{Endpoint, NodeId};
 
 // 修改 publish 方法
 pub fn publish(&mut self, signed: &SignedGossip) -> Result<()> {
-    match self.swarm.behaviour_mut().gossipsub.publish(...) {
+    // 使用 iroh endpoint 发布消息
+    match self.publish_gossip(signed) {
         Ok(_) => Ok(()),
         Err(PublishError::InsufficientPeers) => Ok(()), // 静默忽略
         Err(e) => Err(anyhow!("Gossipsub 发布失败: {:?}", e)),

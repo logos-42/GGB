@@ -62,6 +62,35 @@ pub fn detect_gpu_apis() -> Vec<GpuComputeApi> {
     apis
 }
 
+/// 检测 Windows TPU/NPU 支持
+pub fn detect_tpu() -> Option<bool> {
+    // Windows 系统通常没有原生 TPU 支持，但可能通过特定驱动或库支持
+    // 检查 Google TPU 驱动或其他 AI 加速器
+    if check_library_exists("libtpu.dll") {
+        Some(true)
+    } else {
+        // 尝试通过 WMI 查询特定的 AI 加速设备
+        if let Ok(output) = Command::new("wmic")
+            .args(&["path", "Win32_PnPEntity", "get", "name", "/format:list"])
+            .output()
+        {
+            if let Ok(output_str) = String::from_utf8(output.stdout) {
+                let output_lower = output_str.to_lowercase();
+                
+                // 检查特定的 AI 加速器设备
+                if output_lower.contains("edge tpu") || 
+                   output_lower.contains("neural processing unit") ||
+                   output_lower.contains("ai coprocessor") {
+                    return Some(true);
+                }
+            }
+        }
+        
+        // 检查其他可能的 AI 加速器
+        Some(false)
+    }
+}
+
 /// 检测 Windows 网络类型（增强版 - 真实检测网络类型）
 pub fn detect_network_type() -> NetworkType {
     // 方法1: 使用 netsh 命令检测 WiFi 连接
@@ -207,4 +236,3 @@ pub fn detect_battery() -> (Option<f32>, bool) {
     
     (None, false)
 }
-

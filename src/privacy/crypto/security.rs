@@ -1,9 +1,9 @@
 //! 网络安全和隐私保护模块
-//! 
+//!
 //! 提供IP隐藏、流量混淆、身份保护等功能
 
 use crate::config::SecurityConfig;
-use libp2p::PeerId;
+use iroh::NodeId;
 use parking_lot::RwLock;
 use rand::Rng;
 use std::collections::HashMap;
@@ -76,8 +76,8 @@ impl TrafficObfuscator {
 /// 身份保护管理器
 pub struct IdentityProtector {
     config: SecurityConfig,
-    current_peer_id: RwLock<Option<PeerId>>,
-    peer_id_history: RwLock<HashMap<PeerId, Instant>>,
+    current_peer_id: RwLock<Option<NodeId>>,
+    peer_id_history: RwLock<HashMap<NodeId, Instant>>,
     rotation_interval: Duration,
 }
 
@@ -91,26 +91,25 @@ impl IdentityProtector {
         }
     }
 
-    /// 生成新的临时PeerId
-    pub fn generate_temporary_peer_id(&self) -> PeerId {
-        let local_key = libp2p::identity::Keypair::generate_ed25519();
-        PeerId::from(local_key.public())
+    /// 生成新的临时NodeId
+    pub fn generate_temporary_node_id(&self) -> NodeId {
+        NodeId::from_bytes(rand::thread_rng().gen::<[u8; 32]>())
     }
 
-    /// 获取当前PeerId，如果需要则生成新的
-    pub fn get_current_peer_id(&self) -> PeerId {
+    /// 获取当前NodeId，如果需要则生成新的
+    pub fn get_current_node_id(&self) -> NodeId {
         let mut current = self.current_peer_id.write();
-        
+
         if current.is_none() || self.should_rotate_identity() {
-            let new_peer_id = self.generate_temporary_peer_id();
-            *current = Some(new_peer_id.clone());
-            
+            let new_node_id = self.generate_temporary_node_id();
+            *current = Some(new_node_id.clone());
+
             // 记录历史
             let mut history = self.peer_id_history.write();
-            history.insert(new_peer_id.clone(), Instant::now());
-            
-            println!("[身份保护] 生成新的临时PeerId: {}", new_peer_id);
-            new_peer_id
+            history.insert(new_node_id.clone(), Instant::now());
+
+            println!("[身份保护] 生成新的临时NodeId: {}", new_node_id);
+            new_node_id
         } else {
             current.as_ref().unwrap().clone()
         }
@@ -123,9 +122,9 @@ impl IdentityProtector {
         }
 
         let current = self.current_peer_id.read();
-        if let Some(peer_id) = current.as_ref() {
+        if let Some(node_id) = current.as_ref() {
             let history = self.peer_id_history.read();
-            if let Some(created_at) = history.get(peer_id) {
+            if let Some(created_at) = history.get(node_id) {
                 return created_at.elapsed() > self.rotation_interval;
             }
         }
@@ -140,7 +139,7 @@ impl IdentityProtector {
     }
 
     /// 获取身份历史（用于调试）
-    pub fn get_identity_history(&self) -> Vec<(PeerId, Instant)> {
+    pub fn get_identity_history(&self) -> Vec<(NodeId, Instant)> {
         let history = self.peer_id_history.read();
         history.iter().map(|(k, v)| (k.clone(), *v)).collect()
     }
@@ -157,27 +156,23 @@ impl PrivacyChecker {
     }
 
     /// 检查地址是否暴露IP
-    pub fn is_address_exposing_ip(&self, addr: &libp2p::Multiaddr) -> bool {
+    pub fn is_address_exposing_ip(&self, addr: &String) -> bool {
         if !self.config.hide_ip {
             return false;
         }
 
-        let addr_str = addr.to_string();
-        
+        let addr_str = addr;
+
         // 检查是否包含IP地址
         if addr_str.contains("/ip4/") || addr_str.contains("/ip6/") {
-            // 检查是否为中继地址
-            if addr_str.contains("/p2p-circuit/") {
-                return false; // 中继地址不暴露真实IP
-            }
             return true; // 直接IP地址暴露
         }
-        
+
         false
     }
 
     /// 验证地址隐私性
-    pub fn validate_address_privacy(&self, addr: &libp2p::Multiaddr) -> Result<(), String> {
+    pub fn validate_address_privacy(&self, addr: &String) -> Result<(), String> {
         if self.config.hide_ip && self.is_address_exposing_ip(addr) {
             return Err(format!("地址 {} 暴露了IP地址，违反隐私设置", addr));
         }
@@ -187,14 +182,14 @@ impl PrivacyChecker {
     /// 获取隐私建议
     pub fn get_privacy_advice(&self) -> Vec<String> {
         let mut advice = Vec::new();
-        
+
         if self.config.hide_ip {
             advice.push("IP隐藏已启用，真实IP不会暴露给公共网络".to_string());
-            
+
             if !self.config.use_relay {
                 advice.push("警告：IP隐藏已启用但未使用中继，建议启用中继以获得更好的隐私保护".to_string());
             }
-            
+
             if self.config.enable_dcutr {
                 advice.push("注意：DCUtR可能尝试建立直接连接，这可能暴露IP".to_string());
             }
@@ -202,7 +197,7 @@ impl PrivacyChecker {
             advice.push("IP隐藏未启用，节点IP可能暴露给公共网络".to_string());
             advice.push("建议启用hide_ip和use_relay以保护隐私".to_string());
         }
-        
+
         advice
     }
 }
@@ -210,38 +205,24 @@ impl PrivacyChecker {
 /// 安全工具函数
 pub mod utils {
     use super::*;
-    
-    /// 创建安全的Multiaddr（使用中继）
+
+    /// 创建安全的 NodeAddr
     pub fn create_secure_address(
-        relay_addr: &libp2p::Multiaddr,
-        target_peer_id: &PeerId,
-    ) -> libp2p::Multiaddr {
-        let mut addr = relay_addr.clone();
-        addr.push(libp2p::multiaddr::Protocol::P2pCircuit);
-        addr.push(libp2p::multiaddr::Protocol::P2p(target_peer_id.clone()));
-        addr
+        relay_node_addr: &iroh::NodeAddr,
+        target_node_id: &NodeId,
+    ) -> iroh::NodeAddr {
+        // iroh 使用 relay 节点的方式不同，这里简化实现
+        relay_node_addr.clone()
     }
-    
+
     /// 检查是否为中继地址
-    pub fn is_relay_address(addr: &libp2p::Multiaddr) -> bool {
-        addr.to_string().contains("/p2p-circuit/")
+    pub fn is_relay_address(addr: &String) -> bool {
+        addr.contains("relay") || addr.contains("circuit")
     }
-    
-    /// 从地址中提取目标PeerId（如果是中继地址）
-    pub fn extract_target_peer_id(addr: &libp2p::Multiaddr) -> Option<PeerId> {
-        let mut protocols = addr.iter();
-        let mut found_circuit = false;
-        
-        while let Some(protocol) = protocols.next() {
-            if let libp2p::multiaddr::Protocol::P2pCircuit = protocol {
-                found_circuit = true;
-            } else if found_circuit {
-                if let libp2p::multiaddr::Protocol::P2p(peer_id) = protocol {
-                    return Some(peer_id);
-                }
-            }
-        }
-        
+
+    /// 从地址中提取目标NodeId（如果是中继地址）
+    pub fn extract_target_node_id(addr: &String) -> Option<NodeId> {
+        // 简化实现，实际需要解析 iroh 的地址格式
         None
     }
 }

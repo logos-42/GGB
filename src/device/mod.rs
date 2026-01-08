@@ -9,58 +9,15 @@
 pub mod detection;
 pub mod capabilities;
 pub mod manager;
+pub mod platform;
+pub mod types;
 
 // 重新导出公共接口
 pub use detection::*;
 pub use capabilities::*;
 pub use manager::*;
-
-/// 设备类型枚举
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum DeviceType {
-    /// 桌面设备
-    Desktop,
-    /// 手机设备
-    Phone,
-    /// 平板设备
-    Tablet,
-    /// 服务器设备
-    Server,
-    /// 嵌入式设备
-    Embedded,
-}
-
-/// GPU 计算 API 枚举
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum GpuComputeApi {
-    /// CUDA (NVIDIA)
-    Cuda,
-    /// OpenCL
-    OpenCl,
-    /// Metal (Apple)
-    Metal,
-    /// Vulkan
-    Vulkan,
-    /// DirectX 12
-    DirectX12,
-    /// ROCm (AMD)
-    Rocm,
-}
-
-/// 网络类型枚举
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum NetworkType {
-    /// 有线网络
-    Wired,
-    /// WiFi 网络
-    Wifi,
-    /// 4G 网络
-    Cellular4G,
-    /// 5G 网络
-    Cellular5G,
-    /// 未知网络
-    Unknown,
-}
+pub use types::*;
+pub use platform::*;
 
 /// 设备配置
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

@@ -112,6 +112,41 @@ pub fn detect_gpu_apis() -> Vec<GpuComputeApi> {
     apis
 }
 
+/// 检测 Linux TPU/NPU 支持
+pub fn detect_tpu() -> Option<bool> {
+    // 检查是否有 Google Coral TPU 设备
+    if std::path::Path::new("/dev/apex_0").exists() || std::path::Path::new("/dev/apex1").exists() {
+        return Some(true);
+    }
+    
+    // 检查是否有其他 AI 加速器设备
+    if let Ok(entries) = std::fs::read_dir("/dev") {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let filename = path.file_name().unwrap().to_string_lossy();
+            
+            // 检查常见的 AI 加速器设备名
+            if filename.starts_with("apex") ||      // Google Coral TPU
+               filename.starts_with("mali") ||      // ARM Mali GPU
+               filename.starts_with("neuron") ||    // AWS Inferentia
+               filename.contains("ai") || 
+               filename.contains("npu") {
+                return Some(true);
+            }
+        }
+    }
+    
+    // 检查系统中是否有 AI 加速器驱动加载
+    if let Ok(modules) = std::fs::read_to_string("/proc/modules") {
+        if modules.contains("tpu") || modules.contains("neuron") || 
+           modules.contains("rockchip_rknpu") || modules.contains("mali") {
+            return Some(true);
+        }
+    }
+    
+    Some(false)
+}
+
 /// 检测 Linux 网络类型（增强版 - 真实检测网络类型）
 pub fn detect_network_type() -> NetworkType {
     // 方法1: 使用 nmcli 检测网络类型（最准确）
@@ -161,32 +196,31 @@ pub fn detect_network_type() -> NetworkType {
                     if operstate.trim() != "up" {
                         continue;
                     }
-                }
                 
-                // 检查是否是 WiFi 接口（通常以 wlan 或 wlp 开头）
-                if name_str.starts_with("wlan") || name_str.starts_with("wlp") {
-                    // 检查接口类型
-                    let type_path = path.join("type");
-                    if let Ok(type_content) = std::fs::read_to_string(&type_path) {
-                        if let Ok(type_num) = type_content.trim().parse::<u32>() {
-                            // ARPHRD_IEEE80211 = 801 (WiFi)
-                            if type_num == 801 {
-                                return NetworkType::WiFi;
+                    // 检查是否是 WiFi 接口（通常以 wlan 或 wlp 开头）
+                    if name_str.starts_with("wlan") || name_str.starts_with("wlp") {
+                        // 检查接口类型
+                        let type_path = path.join("type");
+                        if let Ok(type_content) = std::fs::read_to_string(&type_path) {
+                            if let Ok(type_num) = type_content.trim().parse::<u32>() {
+                                // ARPHRD_IEEE80211 = 801 (WiFi)
+                                if type_num == 801 {
+                                    return NetworkType::WiFi;
+                                }
                             }
                         }
                     }
-                }
-                
-                // 检查是否是移动网络接口（通常以 wwan, usb, eth 开头，但需要进一步判断）
-                if name_str.starts_with("wwan") || name_str.starts_with("usb") {
-                    // 检查是否是移动网络设备
-                    let device_path = path.join("device");
-                    if device_path.exists() {
-                        // 可以进一步检查设备信息来确定是 4G 还是 5G
-                        // 这里先返回 4G，实际可以通过读取更多信息来判断
-                        return NetworkType::Cellular4G;
+                    
+                    // 检查是否是移动网络接口（通常以 wwan, usb, eth 开头，但需要进一步判断）
+                    if name_str.starts_with("wwan") || name_str.starts_with("usb") {
+                        // 检查是否是移动网络设备
+                        let device_path = path.join("device");
+                        if device_path.exists() {
+                            // 可以进一步检查设备信息来确定是 4G 还是 5G
+                            // 这里先返回 4G，实际可以通过读取更多信息来判断
+                            return NetworkType::Cellular4G;
+                        }
                     }
-                }
             }
         }
     }
@@ -269,4 +303,4 @@ pub fn detect_battery() -> (Option<f32>, bool) {
     
     (None, false)
 }
-
+                            

@@ -4,13 +4,17 @@
 //! 采用模块化设计，支持灵活的隐私级别配置。
 
 pub mod crypto;
-pub mod overlay;
-pub mod engine;
+// pub mod overlay; // 移除不必要的模块
+// pub mod engine;  // 移除不必要的模块
+
+#[cfg(feature = "zk_proof")]
+pub mod zk;
 
 // 重新导出公共接口
 pub use crypto::*;
-pub use overlay::*;
-pub use engine::*;
+
+#[cfg(feature = "zk_proof")]
+pub use zk::*;
 
 /// 隐私级别枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

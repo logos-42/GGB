@@ -1,18 +1,18 @@
 //! 通信配置模块
-//! 
+//!
 //! 包含通信相关的配置结构和带宽预算管理
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use libp2p::Multiaddr;
+use iroh::NodeAddr;
 
 /// 通信配置
 #[derive(Clone)]
 pub struct CommsConfig {
     pub topic: String,
-    pub listen_addr: Option<Multiaddr>,
+    pub listen_addr: Option<SocketAddr>,
     pub quic_bind: Option<SocketAddr>,
     pub quic_bootstrap: Vec<SocketAddr>,
     pub bandwidth: BandwidthBudgetConfig,
