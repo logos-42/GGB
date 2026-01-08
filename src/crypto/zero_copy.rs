@@ -9,11 +9,11 @@ use super::{EncryptionAlgorithm, HighPerformanceCrypto, HighPerformanceCryptoCon
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use aes::Aes256;
-use block_modes::{Cbc, BlockMode};
-use block_modes::block_padding::Pkcs7;
+use cbc::{Decryptor, Encryptor};
+use block_padding::Pkcs7;
 use blake3::Hasher;
 
-type Aes256Cbc = Cbc<Aes256, Pkcs7>;
+
 
 /// 零拷贝加密引擎
 pub struct ZeroCopyEncryption {
@@ -116,13 +116,16 @@ impl ZeroCopyEncryption {
     
     fn encrypt_aes256_in_place(&self, data: &mut [u8], key: &[u8]) -> Result<()> {
         let iv = [0u8; 16];
-        let cipher = Aes256Cbc::new_var(key, &iv)
+        let cipher = Encryptor::<Aes256, Pkcs7>::new(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
         
-        let encrypted = cipher.encrypt_vec(data);
+        // 使用 encrypt_padded 方法处理填充
+        let mut buffer = vec![0; data.len() + 16]; // 预留填充空间
+        let len = cipher.encrypt_padded(data, &mut buffer)
+            .map_err(|e| anyhow!("AES256加密失败: {}", e))?;
         
-        if encrypted.len() == data.len() {
-            data.copy_from_slice(&encrypted);
+        if len == data.len() {
+            data.copy_from_slice(&buffer[..len]);
             Ok(())
         } else {
             // AES-CBC可能需要填充，所以大小可能不同
@@ -133,14 +136,16 @@ impl ZeroCopyEncryption {
     
     fn decrypt_aes256_in_place(&self, data: &mut [u8], key: &[u8]) -> Result<()> {
         let iv = [0u8; 16];
-        let cipher = Aes256Cbc::new_var(key, &iv)
+        let cipher = Decryptor::<Aes256, Pkcs7>::new(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
         
-        let decrypted = cipher.decrypt_vec(data)
+        // 使用 decrypt_padded 方法处理填充
+        let mut buffer = vec![0; data.len()];
+        let len = cipher.decrypt_padded(data, &mut buffer)
             .map_err(|e| anyhow!("AES256解密失败: {}", e))?;
         
-        if decrypted.len() == data.len() {
-            data.copy_from_slice(&decrypted);
+        if len == data.len() {
+            data.copy_from_slice(&buffer[..len]);
             Ok(())
         } else {
             Err(anyhow!("AES256解密后数据大小不匹配"))

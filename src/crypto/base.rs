@@ -114,8 +114,7 @@ impl EthIdentity {
         } else {
             random_bytes()
         };
-        let signing_key =
-            SigningKey::from_bytes(&secret.into()).map_err(|e| anyhow!(e.to_string()))?;
+        let signing_key = SigningKey::from_bytes(&secret.into())?;
         let verifying_key = signing_key.verifying_key().clone();
         let address = eth_address_from_key(&verifying_key);
         Ok(Self {

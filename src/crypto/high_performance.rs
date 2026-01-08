@@ -11,9 +11,8 @@ use parking_lot::RwLock;
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use aes::Aes256;
-use block_modes::BlockMode;
-use block_modes::block_padding::Pkcs7;
-use block_modes::Cbc;
+use cbc::{Decryptor, Encryptor};
+use block_padding::Pkcs7;
 use blake3::Hasher;
 use rand::RngCore;
 
@@ -195,19 +194,28 @@ impl HighPerformanceCrypto {
     
     pub fn encrypt_aes256(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let iv = [0u8; 16]; // 简化，实际应使用随机IV
-        let cipher = Cbc::<Aes256, Pkcs7>::new_var(key, &iv)
+        let cipher = Encryptor::<Aes256, Pkcs7>::new(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
         
-        Ok(cipher.encrypt_vec(data))
+        // 使用 encrypt_padded 方法处理填充
+        let mut buffer = vec![0; data.len() + 16]; // 预留填充空间
+        let len = cipher.encrypt_padded(data, &mut buffer)
+            .map_err(|e| anyhow!("AES256加密失败: {}", e))?;
+        buffer.truncate(len);
+        Ok(buffer)
     }
     
     pub fn decrypt_aes256(&self, encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let iv = [0u8; 16];
-        let cipher = Cbc::<Aes256, Pkcs7>::new_var(key, &iv)
+        let cipher = Decryptor::<Aes256, Pkcs7>::new(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
         
-        cipher.decrypt_vec(encrypted)
-            .map_err(|e| anyhow!("AES256解密失败: {}", e))
+        // 使用 decrypt_padded 方法处理填充
+        let mut buffer = vec![0; encrypted.len()];
+        let len = cipher.decrypt_padded(encrypted, &mut buffer)
+            .map_err(|e| anyhow!("AES256解密失败: {}", e))?;
+        buffer.truncate(len);
+        Ok(buffer)
     }
     
     pub fn encrypt_blake3(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {

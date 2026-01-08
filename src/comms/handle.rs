@@ -108,10 +108,10 @@ impl CommsHandle {
         let endpoint = Endpoint::builder()
             .secret_key(secret_key)
             .alpns(vec![b"ggb-iroh/1".to_vec()])
-            .bind_addr_v4(bind_addr_v4.into())
-            .listen()
+            .bind(bind_addr_v4.into())
+            .spawn()
             .await
-            .map_err(|e| anyhow!("创建 iroh endpoint 失败: {:?}", e))?;
+            .map_err(|e| anyhow!("创建 iro火 endpoint 失败: {:?}", e))?;
 
         let peer_id = endpoint.node_id().to_string();
         println!("[Iroh] 节点 ID: {}", peer_id);
