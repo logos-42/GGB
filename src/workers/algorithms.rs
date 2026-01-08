@@ -217,40 +217,40 @@ impl WorkerAlgorithmManager {
     /// 随机分配
     async fn allocate_random(&self, request: &AlgorithmRequest) -> Result<TaskAllocation> {
         use rand::Rng;
-        
+
         let mut rng = rand::thread_rng();
-        let node_count = rng.gen_range(1..=request.available_nodes.len().min(3));
-        
+        let node_count = rng.random_range(1..=request.available_nodes.len().min(3));
+
         let mut assigned_nodes = Vec::new();
         let mut subtasks = Vec::new();
-        
+
         for i in 0..node_count {
             if let Some(node) = request.available_nodes.get(i) {
-                let capability_score = rng.gen_range(0.5..0.9);
-                let network_score = rng.gen_range(0.5..0.9);
-                let cost = rng.gen_range(0.8..1.2);
-                
+                let capability_score = rng.random_range(0.5..0.9);
+                let network_score = rng.random_range(0.5..0.9);
+                let cost = rng.random_range(0.8..1.2);
+
                 assigned_nodes.push(AssignedNode {
                     node_id: node.node_id.clone(),
                     capability_score,
                     network_score,
                     cost,
                 });
-                
+
                 subtasks.push(Subtask {
                     subtask_id: format!("{}_{}", request.task_id, i),
                     node_id: node.node_id.clone(),
-                    data_size: rng.gen_range(512..4096),
-                    estimated_time_ms: rng.gen_range(500..3000),
+                    data_size: rng.random_range(512..4096),
+                    estimated_time_ms: rng.random_range(500..3000),
                 });
             }
         }
-        
+
         Ok(TaskAllocation {
             assigned_nodes,
             subtasks,
-            estimated_completion_time_ms: rng.gen_range(2000..8000),
-            total_cost: node_count as f64 * rng.gen_range(0.8..1.2),
+            estimated_completion_time_ms: rng.random_range(2000..8000),
+            total_cost: node_count as f64 * rng.random_range(0.8..1.2),
         })
     }
 }

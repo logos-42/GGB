@@ -9,7 +9,6 @@ use crate::topology::TopologySelector;
 use crate::types::{GeoPoint, GgbMessage};
 use anyhow::Result;
 use futures::StreamExt;
-use iroh::NodeId;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
@@ -30,7 +29,7 @@ impl Node {
     pub async fn new(config: AppConfig) -> Result<Self> {
         let mut rng = rand::thread_rng();
         let geo = GeoPoint::random(&mut rng);
-        let capabilities = config.device_manager.get();
+        let capabilities = config.device_capabilities.clone();
 
         let inference = InferenceEngine::new(config.inference.clone())?;
 
@@ -48,6 +47,9 @@ impl Node {
             }
         }
 
+        // 创建DeviceManager实例
+        let device_manager = DeviceManager::with_capabilities(capabilities.clone());
+        
         let comms = CommsHandle::new(config.comms).await?;
 
         // 设置初始网络类型
@@ -87,7 +89,7 @@ impl Node {
             inference,
             topology,
             consensus,
-            device_manager: config.device_manager,
+            device_manager,
             stats,
             tick_counter: 0,
             checkpoint_dir: config.inference.checkpoint_dir.clone(),
@@ -259,6 +261,12 @@ impl Node {
                 println!("[Iroh] 发现节点 {} @ {}", peer, addr);
                 // 将发现的节点添加到订阅列表
                 self.comms.add_peer(peer);
+                
+                // 尝试测量到该节点的网络距离
+                // if let Ok(node_addr) = addr.parse::<NodeAddr>() {
+                //     let network_distance = self.comms.measure_network_distance(&node_addr).await;
+                //     self.topology.update_peer_network_distance(&peer.to_string(), network_distance);
+                // }
             }
             IrohEvent::PeerExpired { peer } => {
                 println!("[Iroh] 节点离线 {}", peer);
@@ -268,6 +276,10 @@ impl Node {
                 println!("[Iroh] 连接建立: {}", peer);
                 // 连接建立后，可以添加到订阅列表
                 self.comms.add_peer(peer);
+                
+                // 当连接建立时，尝试获取节点地址并测量网络距离
+                // 注意：这里我们没有直接的地址，需要通过其他方式获取
+                // 我们将在接收到相似性探测时更新网络距离
             }
             IrohEvent::ConnectionClosed { peer } => {
                 println!("[Iroh] 连接断开: {}", peer);
@@ -300,19 +312,36 @@ impl Node {
             } => {
                 self.stats.record_probe_received(sender);
                 let self_embedding = self.inference.embedding();
+                // 创建默认的网络距离信息
+                use crate::types::NetworkDistance;
+                let network_distance = NetworkDistance::new();
+
                 self.topology.update_peer(
                     sender,
                     embedding.clone(),
                     position.clone(),
                     &self_embedding,
+                    network_distance,
                 );
+
+                // 如果可能，尝试获取并更新网络距离信息
+                // 这里我们可以尝试测量到发送方的网络距离
+                // NodeId API已改变，暂时注释掉
+                // if let Ok(node_id) = sender.parse::<iroh::NodeId>() {
+                //     // 创建一个临时的 NodeAddr，因为我们只有 NodeId
+                //     // 实际上我们需要通过其他方式获取完整的 NodeAddr
+                //     // 为了演示目的，我们暂时跳过此步骤
+                // }
+
                 if let Some(snapshot) = self.topology.peer_snapshot(sender) {
                     let stake = self.consensus.stake_weight(sender);
+                    let network_affinity = self.topology.get_peer_network_affinity(sender).unwrap_or(0.0);
                     println!(
-                        "拓扑更新：{} => sim {:.3}, geo {:.3}, stake {:.3}, dim {}, pos ({:.1},{:.1})",
+                        "拓扑更新：{} => sim {:.3}, geo {:.3}, net {:.3}, stake {:.3}, dim {}, pos ({:.1},{:.1})",
                         sender,
                         snapshot.similarity,
                         snapshot.geo_affinity,
+                        network_affinity,
                         stake,
                         snapshot.embedding_dim,
                         snapshot.position.lat,

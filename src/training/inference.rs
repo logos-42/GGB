@@ -404,9 +404,9 @@ impl InferenceEngine {
         
         // 保存当前参数用于收敛度计算
         state.previous_params = Some(state.params.clone());
-        
+
         for v in state.params.iter_mut() {
-            *v += rng.gen_range(-1e-3..1e-3);
+            *v += rng.random_range(-1e-3..1e-3);
         }
         state.version = state.version.saturating_add(1);
         
@@ -835,6 +835,6 @@ fn load_or_random(dim: usize, path: Option<&Path>) -> Result<Array1<f32>> {
         }
     }
     let mut rng = rand::thread_rng();
-    let data: Vec<f32> = (0..dim).map(|_| rng.gen_range(-0.1..0.1)).collect();
+    let data: Vec<f32> = (0..dim).map(|_| rng.random_range(-0.1..0.1)).collect();
     Ok(Array1::from_vec(data))
 }

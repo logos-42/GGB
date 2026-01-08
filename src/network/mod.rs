@@ -4,10 +4,12 @@
 
 pub mod transport;
 pub mod routing;
+pub mod latency;
 
 // 重新导出公共接口
 pub use transport::*;
 pub use routing::*;
+pub use latency::*;
 
 /// 网络配置
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

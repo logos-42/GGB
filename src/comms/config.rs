@@ -6,10 +6,10 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use iroh::NodeAddr;
+use serde::{Deserialize, Serialize};
 
 /// 通信配置
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CommsConfig {
     pub topic: String,
     pub listen_addr: Option<SocketAddr>,
@@ -37,7 +37,7 @@ impl Default for CommsConfig {
 }
 
 /// 带宽预算配置
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BandwidthBudgetConfig {
     pub sparse_per_window: u32,
     pub dense_bytes_per_window: usize,

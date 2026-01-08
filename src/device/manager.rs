@@ -1,13 +1,21 @@
-use super::capabilities::DeviceCapabilities;
-use super::detection::DeviceDetector;
-use super::types::NetworkType;
+use crate::device::capabilities::DeviceCapabilities;
+use crate::device::detection::DeviceDetector;
+use crate::device::types::NetworkType;
 use parking_lot::RwLock;
 use std::sync::Arc;
 
 /// 设备能力管理器（支持运行时更新）
-#[derive(Clone)]
 pub struct DeviceManager {
     capabilities: Arc<RwLock<DeviceCapabilities>>,
+}
+
+impl Clone for DeviceManager {
+    fn clone(&self) -> Self {
+        // 仅克隆Arc指针，不复制内部数据
+        Self {
+            capabilities: Arc::clone(&self.capabilities),
+        }
+    }
 }
 
 impl DeviceManager {

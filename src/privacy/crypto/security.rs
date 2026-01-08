@@ -67,7 +67,7 @@ impl TrafficObfuscator {
         // 随机打乱填充大小
         let mut rng = rand::thread_rng();
         for i in 0..self.padding_sizes.len() {
-            let j = rng.gen_range(i..self.padding_sizes.len());
+            let j = rng.random_range(i..self.padding_sizes.len());
             self.padding_sizes.swap(i, j);
         }
     }

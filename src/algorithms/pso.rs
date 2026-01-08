@@ -62,15 +62,15 @@ impl Particle {
     /// 创建新粒子
     pub fn new(dimensions: usize) -> Self {
         let mut rng = rand::thread_rng();
-        
+
         let position: Vec<f64> = (0..dimensions)
-            .map(|_| rng.gen_range(0.0..1.0))
+            .map(|_| rng.random_range(0.0..1.0))
             .collect();
-        
+
         let velocity: Vec<f64> = (0..dimensions)
-            .map(|_| rng.gen_range(-0.1..0.1))
+            .map(|_| rng.random_range(-0.1..0.1))
             .collect();
-        
+
         Self {
             position: position.clone(),
             velocity,
@@ -95,17 +95,17 @@ impl Particle {
         global_best_position: &[f64],
     ) {
         let mut rng = rand::thread_rng();
-        
+
         for i in 0..self.velocity.len() {
-            let r1: f64 = rng.gen();
-            let r2: f64 = rng.gen();
-            
+            let r1: f64 = rng.random();
+            let r2: f64 = rng.random();
+
             // 速度更新公式
-            let cognitive = config.cognitive_coefficient * r1 * 
+            let cognitive = config.cognitive_coefficient * r1 *
                 (self.best_position[i] - self.position[i]);
-            let social = config.social_coefficient * r2 * 
+            let social = config.social_coefficient * r2 *
                 (global_best_position[i] - self.position[i]);
-            
+
             self.velocity[i] = config.inertia_weight * self.velocity[i] + 
                 cognitive + social;
             

@@ -7,7 +7,7 @@ edition = "2021"
 tokio = { version = "1", default-features = false, features = ["rt", "time", "sync"] }
 iroh = "0.95.1"
 
-async-trait = "0.1"
+async-trait = { version = "0.1", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.149"
 toml = "0.9.8"
@@ -28,7 +28,7 @@ chacha20poly1305 = "0.10"
 aes = "0.8"
 cipher = "0.4"
 subtle = "2.5"
-block-modes = "0.9"
+block-modes = "0.8"
 ctr = "0.9"
 aead = "0.5"
 blake3 = "1.5"
@@ -63,15 +63,29 @@ wasm = ["wasm-bindgen", "js-sys", "web-sys", "serde-wasm-bindgen"]
 workers = ["wasm"]
 zk_proof = ["nori"]
 
+
 # 为 Android 构建配置库类型
 [lib]
 name = "williw"
 path = "src/lib.rs"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
+# 修复二进制名称冲突
+[[bin]]
+name = "williw-bin"
+path = "src/main.rs"
+
 [[example]]
 name = "multi_node_test"
 path = "examples/multi_node_test.rs"
+
+[[example]]
+name = "simple_distance_test"
+path = "examples/simple_distance_test.rs"
+
+[[example]]
+name = "comms_distance_test"
+path = "examples/comms_distance_test.rs"
 
 [[bin]]
 name = "analyze_training"

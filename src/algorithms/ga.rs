@@ -66,25 +66,25 @@ impl Chromosome {
     pub fn new(length: usize) -> Self {
         let mut rng = rand::thread_rng();
         let genes: Vec<f64> = (0..length)
-            .map(|_| rng.gen_range(0.0..1.0))
+            .map(|_| rng.random_range(0.0..1.0))
             .collect();
-        
+
         Self {
             genes,
             fitness: 0.0,
             selected: false,
         }
     }
-    
+
     /// 交叉操作
     pub fn crossover(&self, other: &Self, rate: f64) -> (Self, Self) {
         let mut rng = rand::thread_rng();
-        
-        if rng.gen::<f64>() > rate || self.genes.is_empty() {
+
+        if rng.random::<f64>() > rate || self.genes.is_empty() {
             return (self.clone(), other.clone());
         }
-        
-        let point = rng.gen_range(0..self.genes.len());
+
+        let point = rng.random_range(0..self.genes.len());
         
         let mut child1_genes = Vec::new();
         let mut child2_genes = Vec::new();
@@ -116,11 +116,11 @@ impl Chromosome {
     /// 变异操作
     pub fn mutate(&mut self, rate: f64) {
         let mut rng = rand::thread_rng();
-        
+
         for gene in &mut self.genes {
-            if rng.gen::<f64>() < rate {
+            if rng.random::<f64>() < rate {
                 // 高斯变异
-                let mutation = rng.gen_range(-0.1..0.1);
+                let mutation = rng.random_range(-0.1..0.1);
                 *gene = (*gene + mutation).clamp(0.0, 1.0);
             }
         }
@@ -199,30 +199,30 @@ impl Population {
     /// 轮盘赌选择
     fn roulette_selection(&mut self) {
         let total_fitness: f64 = self.chromosomes.iter().map(|c| c.fitness).sum();
-        
+
         if total_fitness <= 0.0 {
             // 如果所有适应度都为0，随机选择
             for chromosome in &mut self.chromosomes {
-                chromosome.selected = rand::thread_rng().gen_bool(0.5);
+                chromosome.selected = rand::thread_rng().random_bool(0.5);
             }
             return;
         }
-        
+
         for chromosome in &mut self.chromosomes {
             let probability = chromosome.fitness / total_fitness;
-            chromosome.selected = rand::thread_rng().gen_bool(probability);
+            chromosome.selected = rand::thread_rng().random_bool(probability);
         }
     }
-    
+
     /// 锦标赛选择
     fn tournament_selection(&mut self, tournament_size: usize) {
         let mut rng = rand::thread_rng();
-        
+
         for chromosome in &mut self.chromosomes {
             // 随机选择锦标赛参与者
             let mut tournament: Vec<&Chromosome> = Vec::new();
             for _ in 0..tournament_size {
-                let idx = rng.gen_range(0..self.chromosomes.len());
+                let idx = rng.random_range(0..self.chromosomes.len());
                 tournament.push(&self.chromosomes[idx]);
             }
             
@@ -276,14 +276,14 @@ impl Population {
         
         while next_generation.len() < config.population_size {
             if selected_chromosomes.len() >= 2 {
-                let parent1 = selected_chromosomes[rand::thread_rng().gen_range(0..selected_chromosomes.len())];
-                let parent2 = selected_chromosomes[rand::thread_rng().gen_range(0..selected_chromosomes.len())];
-                
+                let parent1 = selected_chromosomes[rand::thread_rng().random_range(0..selected_chromosomes.len())];
+                let parent2 = selected_chromosomes[rand::thread_rng().random_range(0..selected_chromosomes.len())];
+
                 let (mut child1, mut child2) = parent1.crossover(parent2, config.crossover_rate);
-                
+
                 child1.mutate(config.mutation_rate);
                 child2.mutate(config.mutation_rate);
-                
+
                 next_generation.push(child1);
                 if next_generation.len() < config.population_size {
                     next_generation.push(child2);

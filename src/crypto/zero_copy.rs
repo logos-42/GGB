@@ -1,5 +1,5 @@
 //! 零拷贝加密模块
-//! 
+//!
 //! 提供原地加密解密功能，避免内存复制开销。
 
 use anyhow::{anyhow, Result};
@@ -9,7 +9,7 @@ use super::{EncryptionAlgorithm, HighPerformanceCrypto, HighPerformanceCryptoCon
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use aes::Aes256;
-use block_modes::{BlockMode, Cbc};
+use block_modes::{Cbc, BlockMode};
 use block_modes::block_padding::Pkcs7;
 use blake3::Hasher;
 
@@ -88,7 +88,7 @@ impl ZeroCopyEncryption {
         
         // 由于ChaCha20-Poly1305需要额外的认证标签空间，
         // 这里我们使用临时缓冲区
-        let encrypted = cipher.encrypt(nonce, data)
+        let encrypted = cipher.encrypt(nonce, &*data)
             .map_err(|e| anyhow!("ChaCha20加密失败: {}", e))?;
         
         if encrypted.len() == data.len() {
@@ -103,7 +103,7 @@ impl ZeroCopyEncryption {
         let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
         let nonce = Nonce::from_slice(&[0u8; 12]);
         
-        let decrypted = cipher.decrypt(nonce, data)
+        let decrypted = cipher.decrypt(nonce, &*data)
             .map_err(|e| anyhow!("ChaCha20解密失败: {}", e))?;
         
         if decrypted.len() == data.len() {
@@ -116,7 +116,7 @@ impl ZeroCopyEncryption {
     
     fn encrypt_aes256_in_place(&self, data: &mut [u8], key: &[u8]) -> Result<()> {
         let iv = [0u8; 16];
-        let cipher = Aes256Cbc::new_from_slices(key, &iv)
+        let cipher = Aes256Cbc::new_var(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
         
         let encrypted = cipher.encrypt_vec(data);
@@ -133,7 +133,7 @@ impl ZeroCopyEncryption {
     
     fn decrypt_aes256_in_place(&self, data: &mut [u8], key: &[u8]) -> Result<()> {
         let iv = [0u8; 16];
-        let cipher = Aes256Cbc::new_from_slices(key, &iv)
+        let cipher = Aes256Cbc::new_var(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
         
         let decrypted = cipher.decrypt_vec(data)
@@ -165,7 +165,9 @@ impl ZeroCopyEncryption {
         let message = &data[..data_len];
         let hash = &data[data_len..];
         
-        let mut hasher = Hasher::new_keyed(key);
+        let keyed_key: [u8; 32] = key.try_into()
+            .map_err(|_| anyhow!("Blake3 key must be 32 bytes"))?;
+        let mut hasher = Hasher::new_keyed(&keyed_key);
         hasher.update(message);
         let expected_hash = hasher.finalize();
         

@@ -10,8 +10,6 @@ pub mod routing;
 // 重新导出常用类型
 pub use config::{CommsConfig, BandwidthBudgetConfig};
 pub use handle::{CommsHandle, IrohEvent, Topic};
-pub use iroh::QuicGateway;
-pub use routing::{RouteInfo, RouteQuality, RouteScore};
 
 use anyhow::Result;
 

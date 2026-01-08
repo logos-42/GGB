@@ -132,13 +132,13 @@ impl SelectiveEncryption {
     fn generate_random_ranges(&self, data_len: usize, count: usize) -> Vec<(usize, usize)> {
         let mut rng = rand::thread_rng();
         let mut ranges = Vec::new();
-        
+
         for _ in 0..count {
-            let start = rng.gen_range(0..data_len.saturating_sub(10));
-            let end = start + rng.gen_range(5..20.min(data_len - start));
+            let start = rng.random_range(0..data_len.saturating_sub(10));
+            let end = start + rng.random_range(5..20.min(data_len - start));
             ranges.push((start, end));
         }
-        
+
         ranges
     }
     

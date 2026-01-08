@@ -79,8 +79,7 @@ impl DeviceCapabilities {
         
         // 网络评分
         let network_score = match self.network_type {
-            NetworkType::Wired => 0.1,
-            NetworkType::Wifi => 0.08,
+            NetworkType::WiFi => 0.1,
             NetworkType::Cellular5G => 0.06,
             NetworkType::Cellular4G => 0.04,
             NetworkType::Unknown => 0.02,
@@ -129,8 +128,7 @@ impl DeviceCapabilities {
             DeviceType::Desktop => "桌面设备",
             DeviceType::Phone => "手机",
             DeviceType::Tablet => "平板",
-            DeviceType::Server => "服务器",
-            DeviceType::Embedded => "嵌入式设备",
+            DeviceType::Unknown => "未知设备",
         }
     }
 }

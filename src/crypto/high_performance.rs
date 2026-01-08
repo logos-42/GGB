@@ -8,22 +8,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::collections::HashMap;
 use std::sync::Arc;
 use parking_lot::RwLock;
-use rayon::prelude::*;
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use aes::Aes256;
-// 正确的导入方式取决于 block_modes 库的实际 API
-use block_modes::block_mode::BlockMode;
-use block_modes::block_mode::Cbc;
+use block_modes::BlockMode;
 use block_modes::block_padding::Pkcs7;
+use block_modes::Cbc;
 use blake3::Hasher;
 use rand::RngCore;
 
 use super::{EncryptionAlgorithm, PrivacyLevel, PerformanceMetrics, PrivacyPerformanceMetrics};
-
-// 导入批量处理功能
-use super::batch::*;
-
 
 /// 高性能加密引擎配置
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -94,7 +88,7 @@ impl HighPerformanceCrypto {
             EncryptionAlgorithm::Aes256Cbc => 32,        // 256位
             EncryptionAlgorithm::Blake3 => 32,           // 256位
         };
-        
+
         let mut key = vec![0u8; key_size];
         rand::thread_rng().fill_bytes(&mut key);
         Ok(key)
@@ -181,9 +175,9 @@ impl HighPerformanceCrypto {
         }
     }
     
-    // ============ 私有方法 ============
+    // ============ 公有方法 ============
     
-    fn encrypt_chacha20(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+    pub fn encrypt_chacha20(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
         let nonce = Nonce::from_slice(&[0u8; 12]); // 简化，实际应使用随机nonce
         
@@ -191,7 +185,7 @@ impl HighPerformanceCrypto {
             .map_err(|e| anyhow!("ChaCha20加密失败: {}", e))
     }
     
-    fn decrypt_chacha20(&self, encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+    pub fn decrypt_chacha20(&self, encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
         let nonce = Nonce::from_slice(&[0u8; 12]);
         
@@ -199,24 +193,24 @@ impl HighPerformanceCrypto {
             .map_err(|e| anyhow!("ChaCha20解密失败: {}", e))
     }
     
-    fn encrypt_aes256(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+    pub fn encrypt_aes256(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let iv = [0u8; 16]; // 简化，实际应使用随机IV
-        let cipher = block_modes::Cbc::<Aes256, block_modes::block_padding::Pkcs7>::new_from_slices(key, &iv)
+        let cipher = Cbc::<Aes256, Pkcs7>::new_var(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
         
         Ok(cipher.encrypt_vec(data))
     }
     
-    fn decrypt_aes256(&self, encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+    pub fn decrypt_aes256(&self, encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let iv = [0u8; 16];
-        let cipher = block_modes::Cbc::<Aes256, block_modes::block_padding::Pkcs7>::new_from_slices(key, &iv)
+        let cipher = Cbc::<Aes256, Pkcs7>::new_var(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
         
         cipher.decrypt_vec(encrypted)
             .map_err(|e| anyhow!("AES256解密失败: {}", e))
     }
     
-    fn encrypt_blake3(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+    pub fn encrypt_blake3(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let keyed_key: [u8; 32] = key.try_into()
             .map_err(|_| anyhow!("Blake3 key must be 32 bytes"))?;
         let mut hasher = Hasher::new_keyed(&keyed_key);
@@ -230,7 +224,7 @@ impl HighPerformanceCrypto {
         Ok(result)
     }
     
-    fn decrypt_blake3(&self, encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+    pub fn decrypt_blake3(&self, encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         if encrypted.len() < 32 {
             return Err(anyhow!("加密数据太短"));
         }

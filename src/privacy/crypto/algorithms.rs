@@ -1,15 +1,15 @@
 //! 加密算法实现
-//! 
+//!
 //! 提供多种加密算法的统一实现。
 
 use anyhow::{anyhow, Result};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use aes::Aes256;
-use block_modes::block_mode::BlockMode;
-use block_modes::block_mode::Cbc;
+use block_modes::{Cbc, BlockMode};
 use block_modes::block_padding::Pkcs7;
 use blake3;
+use rand::thread_rng;
 use rand::RngCore;
 use zeroize::Zeroize;
 
@@ -146,7 +146,8 @@ impl Encryptor for Aes256CbcEncryptor {
         let mut iv = [0u8; 16];
         rand::thread_rng().fill_bytes(&mut iv);
         
-        let cipher = block_modes::Cbc::<Aes256, block_modes::block_padding::Pkcs7>::new_from_slices(key.as_bytes(), &iv)
+        let cipher = Cbc::<Aes256, Pkcs7>::new_var(key.as_bytes(), &iv)
+            .map_err(|e| anyhow!("Failed to create cipher: {}", e))?
             .map_err(|e| anyhow!("Failed to create cipher: {}", e))?;
         
         let ciphertext = cipher.encrypt_vec(plaintext);
@@ -170,7 +171,8 @@ impl Encryptor for Aes256CbcEncryptor {
             return Err(anyhow!("Invalid IV size: expected 16, got {}", iv.len()));
         }
         
-        let cipher = block_modes::Cbc::<Aes256, block_modes::block_padding::Pkcs7>::new_from_slices(key.as_bytes(), iv)
+        let cipher = Cbc::<Aes256, Pkcs7>::new_var(key.as_bytes(), iv)
+            .map_err(|e| anyhow!("Failed to create cipher: {}", e))?
             .map_err(|e| anyhow!("Failed to create cipher: {}", e))?;
         
         let plaintext = cipher.decrypt_vec(&encrypted.ciphertext)

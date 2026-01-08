@@ -110,8 +110,8 @@ impl Ant {
         
         // 轮盘赌选择
         let mut rng = rand::thread_rng();
-        let random_value = rng.gen_range(0.0..total_probability);
-        
+        let random_value = rng.random_range(0.0..total_probability);
+
         let mut cumulative = 0.0;
         for (node, probability) in probabilities {
             cumulative += probability;

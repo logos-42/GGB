@@ -2,18 +2,17 @@ use crate::comms::{CommsConfig, BandwidthBudgetConfig};
 use crate::consensus::ConsensusConfig;
 use crate::crypto::CryptoConfig;
 use crate::device::{DeviceCapabilities, DeviceManager};
-use crate::inference::InferenceConfig;
-use crate::topology::TopologyConfig;
-use crate::inference::LossType;
-use anyhow::anyhow;
-use iroh::NodeAddr;
+// use crate::inference::InferenceConfig;
+// use crate::topology::TopologyConfig;
+// use crate::inference::LossType;
+// use iroh::NodeAddr;  // 注释掉，因为API可能已改变
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SecurityConfig {
     pub hide_ip: bool,
     pub use_relay: bool,
-    pub relay_nodes: Vec<NodeAddr>,
+    pub relay_nodes: Vec<String>,  // 用字符串代替NodeAddr
     pub private_network_key: Option<String>,
     pub max_hops: u8,
     pub enable_autonat: bool,
@@ -50,7 +49,7 @@ pub struct PrivacyPerformanceConfig {
 }
 
 /// 平衡模式枚举
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum BalanceMode {
     Performance,
     Balanced,
@@ -59,7 +58,7 @@ pub enum BalanceMode {
 }
 
 /// 拥塞控制算法枚举
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum CongestionControlAlgorithm {
     Bbr,
     Cubic,
@@ -67,7 +66,7 @@ pub enum CongestionControlAlgorithm {
 }
 
 /// 路由选择策略枚举
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum RoutingStrategy {
     SmartBalance,      // 智能平衡
     PrivacyFirst,      // 隐私优先
@@ -250,57 +249,27 @@ impl PrivacyPerformanceConfig {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AppConfig {
-    pub inference: InferenceConfig,
+    // pub inference: InferenceConfig,
     pub comms: CommsConfig,
-    pub topology: TopologyConfig,
+    // pub topology: TopologyConfig,
     pub crypto: CryptoConfig,
     pub consensus: ConsensusConfig,
-    pub device_manager: DeviceManager,
+    // 移除DeviceManager的序列化，改为存储DeviceCapabilities
+    pub device_capabilities: DeviceCapabilities,
     pub security: SecurityConfig,
 }
 
 impl AppConfig {
     /// 根据设备能力自动调整配置
     pub fn from_device_capabilities(capabilities: DeviceCapabilities) -> Self {
-        // 如果检测失败，使用默认桌面配置作为回退
+        // 如果检测失败，使用默认配置作为回退
         let capabilities = if capabilities.max_memory_mb == 0 || capabilities.cpu_cores == 0 {
-            println!("[警告] 设备检测失败，使用默认桌面配置");
-            DeviceCapabilities::default_desktop()
+            println!("[警告] 设备检测失败，使用默认配置");
+            DeviceCapabilities::default()
         } else {
             capabilities
         };
-        let model_dim = capabilities.recommended_model_dim();
         let network_type = capabilities.network_type;
-
-        // 根据设备能力调整推理配置
-        // 支持通过环境变量选择损失函数类型
-        let loss_type = if let Ok(loss_env) = std::env::var("WILLIW_LOSS_TYPE") {
-            match loss_env.to_uppercase().as_str() {
-                "CROSSENTROPY" | "CE" => {
-                    println!("[配置] 使用交叉熵损失函数");
-                    LossType::CrossEntropy
-                }
-                "MAE" => {
-                    println!("[配置] 使用平均绝对误差损失函数");
-                    LossType::MAE
-                }
-                "MSE" | _ => {
-                    println!("[配置] 使用均方误差损失函数（默认）");
-                    LossType::MSE
-                }
-            }
-        } else {
-            LossType::MSE
-        };
-
-        let inference = InferenceConfig {
-            model_dim,
-            model_path: None,
-            checkpoint_dir: None,
-            learning_rate: 0.001,
-            use_training: false,
-            loss_type,
-        };
 
         // 根据网络类型调整带宽预算
         let bandwidth_factor = network_type.bandwidth_factor();
@@ -323,22 +292,11 @@ impl AppConfig {
             security: SecurityConfig::default(),
         };
 
-        // 根据设备能力调整拓扑配置
-        let topology = TopologyConfig {
-            max_neighbors: capabilities.recommended_max_neighbors(),
-            failover_pool: capabilities.recommended_failover_pool(),
-            min_score: 0.15,
-            geo_scale_km: 500.0,
-            peer_stale_secs: 120,
-        };
-
         Self {
-            inference,
             comms,
-            topology,
             crypto: CryptoConfig::default(),
             consensus: ConsensusConfig::default(),
-            device_manager: DeviceManager::with_capabilities(capabilities),
+            device_capabilities: capabilities,
             security: SecurityConfig::default(),
         }
     }
@@ -346,37 +304,16 @@ impl AppConfig {
 
 impl Default for AppConfig {
     fn default() -> Self {
-        // 检查环境变量，支持使用预设的设备配置
-        let capabilities = if let Ok(device_type) = std::env::var("WILLIW_DEVICE_TYPE") {
-            match device_type.as_str() {
-                "desktop" | "default" => {
-                    println!("[配置] 使用默认桌面设备配置");
-                    DeviceCapabilities::default_desktop()
-                }
-                "low" | "low_end" => {
-                    println!("[配置] 使用低端移动设备配置");
-                    DeviceCapabilities::low_end_mobile()
-                }
-                "mid" | "mid_range" => {
-                    println!("[配置] 使用中端移动设备配置");
-                    DeviceCapabilities::mid_range_mobile()
-                }
-                "high" | "high_end" => {
-                    println!("[配置] 使用高端移动设备配置");
-                    DeviceCapabilities::high_end_mobile()
-                }
-                _ => {
-                    println!("[配置] 未知设备类型 '{}'，使用自动检测", device_type);
-                    let device_manager = DeviceManager::new();
-                    device_manager.get()
-                }
-            }
-        } else {
-            let device_manager = DeviceManager::new();
-            device_manager.get()
-        };
+        let device_manager = DeviceManager::new();
+        let capabilities = device_manager.get();
 
-        Self::from_device_capabilities(capabilities)
+        Self {
+            comms: CommsConfig::default(),
+            crypto: CryptoConfig::default(),
+            consensus: ConsensusConfig::default(),
+            device_capabilities: capabilities,
+            security: SecurityConfig::default(),
+        }
     }
 }
 

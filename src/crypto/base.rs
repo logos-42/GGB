@@ -3,12 +3,10 @@
 //! 提供基础的签名、验证功能，支持以太坊和Solana密钥对。
 
 use anyhow::{anyhow, Result};
-use ed25519_dalek::{
-    Keypair as SolKeypair, PublicKey as SolPublicKey, SecretKey as SolSecretKey,
-    Signature as SolRawSignature, Signer as SolSigner, Verifier as SolVerifier,
-};
+use ed25519_dalek::{SigningKey as SolKeypair, VerifyingKey as SolPublicKey,
+    Signature as SolRawSignature, Signer as SolSigner, Verifier as SolVerifier};
 use k256::ecdsa::{
-    signature::{Signer, Verifier},
+    signature::{Signer as EthSigner, Verifier as EthVerifier},
     Signature as EthSignatureRaw, SigningKey, VerifyingKey,
 };
 use rand::RngCore;
@@ -39,7 +37,7 @@ pub struct SignatureBundle {
 }
 
 /// 加密配置
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CryptoConfig {
     pub eth_hex_seed: Option<String>,
     pub sol_bs58_seed: Option<String>,
@@ -169,14 +167,15 @@ impl SolIdentity {
                 64 => {
                     let mut arr = [0u8; 64];
                     arr.copy_from_slice(&bytes);
-                    SolKeypair::from_bytes(&arr).map_err(|e| anyhow!("sol key error: {e}"))?
+                    let key_bytes: [u8; 32] = arr[..32].try_into().map_err(|_| anyhow!("Failed to extract key bytes"))?;
+                    SolKeypair::from_bytes(&key_bytes)
                 }
                 _ => return Err(anyhow!("Solana seed must be 32 or 64 bytes")),
             }
         } else {
             keypair_from_secret(random_bytes())?
         };
-        let pubkey = bs58::encode(keypair.public.as_bytes()).into_string();
+        let pubkey = bs58::encode(keypair.verifying_key().as_bytes()).into_string();
         Ok(Self { keypair, pubkey })
     }
 
@@ -193,8 +192,8 @@ impl SolIdentity {
             return false;
         }
         if let Ok(bytes) = bs58::decode(&sig.signature).into_vec() {
-            if let Ok(signature) = SolRawSignature::from_bytes(&bytes) {
-                return self.keypair.public.verify(payload, &signature).is_ok();
+            if let Ok(signature) = SolRawSignature::try_from(&bytes[..]) {
+                return self.keypair.verify(payload, &signature).is_ok();
             }
         }
         false
@@ -226,10 +225,7 @@ fn random_bytes() -> [u8; 32] {
 
 /// 从密钥生成Solana密钥对
 fn keypair_from_secret(secret_bytes: [u8; 32]) -> Result<SolKeypair> {
-    let secret =
-        SolSecretKey::from_bytes(&secret_bytes).map_err(|e| anyhow!("sol key error: {e}"))?;
-    let public = SolPublicKey::from(&secret);
-    Ok(SolKeypair { secret, public })
+    SolKeypair::from_bytes(&secret_bytes).map_err(|e| anyhow!("sol key error: {e}"))
 }
 
 #[cfg(test)]

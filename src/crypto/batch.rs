@@ -42,9 +42,9 @@ impl HighPerformanceCrypto {
         Ok(result)
     }
     
-    // ============ 私有方法 ============
+    // ============ 公有方法 ============
     
-    fn encrypt_batch_sequential(&self, data_chunks: &[&[u8]], key: &[u8], algorithm: EncryptionAlgorithm) -> Result<Vec<Vec<u8>>> {
+    pub fn encrypt_batch_sequential(&self, data_chunks: &[&[u8]], key: &[u8], algorithm: EncryptionAlgorithm) -> Result<Vec<Vec<u8>>> {
         let mut results = Vec::with_capacity(data_chunks.len());
         
         for chunk in data_chunks {
@@ -55,7 +55,7 @@ impl HighPerformanceCrypto {
         Ok(results)
     }
     
-    fn decrypt_batch_sequential(&self, encrypted_chunks: &[&[u8]], key: &[u8], algorithm: EncryptionAlgorithm) -> Result<Vec<Vec<u8>>> {
+    pub fn decrypt_batch_sequential(&self, encrypted_chunks: &[&[u8]], key: &[u8], algorithm: EncryptionAlgorithm) -> Result<Vec<Vec<u8>>> {
         let mut results = Vec::with_capacity(encrypted_chunks.len());
         
         for chunk in encrypted_chunks {
@@ -66,7 +66,7 @@ impl HighPerformanceCrypto {
         Ok(results)
     }
     
-    fn encrypt_batch_parallel(&self, data_chunks: &[&[u8]], key: &[u8], algorithm: EncryptionAlgorithm) -> Result<Vec<Vec<u8>>> {
+    pub fn encrypt_batch_parallel(&self, data_chunks: &[&[u8]], key: &[u8], algorithm: EncryptionAlgorithm) -> Result<Vec<Vec<u8>>> {
         let key = key.to_vec();
         
         let results: Vec<Result<Vec<u8>>> = data_chunks
@@ -83,7 +83,7 @@ impl HighPerformanceCrypto {
         results.into_iter().collect()
     }
     
-    fn decrypt_batch_parallel(&self, encrypted_chunks: &[&[u8]], key: &[u8], algorithm: EncryptionAlgorithm) -> Result<Vec<Vec<u8>>> {
+    pub fn decrypt_batch_parallel(&self, encrypted_chunks: &[&[u8]], key: &[u8], algorithm: EncryptionAlgorithm) -> Result<Vec<Vec<u8>>> {
         let key = key.to_vec();
         
         let results: Vec<Result<Vec<u8>>> = encrypted_chunks

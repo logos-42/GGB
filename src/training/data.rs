@@ -63,17 +63,17 @@ impl SyntheticData {
         use rand::SeedableRng;
         use rand::rngs::StdRng;
         use rand::Rng;
-        
+
         let mut rng = StdRng::seed_from_u64(seed);
-        
+
         // 生成随机权重和偏置
         let weight: Vec<f32> = (0..input_dim * output_dim)
-            .map(|_| rng.gen_range(-0.1..0.1))
+            .map(|_| rng.random_range(-0.1..0.1))
             .collect();
         let weight = Array1::from_vec(weight);
-        
+
         let bias: Vec<f32> = (0..output_dim)
-            .map(|_| rng.gen_range(-0.05..0.05))
+            .map(|_| rng.random_range(-0.05..0.05))
             .collect();
         let bias = Array1::from_vec(bias);
         
@@ -104,13 +104,13 @@ impl TrainingData for SyntheticData {
         // 使用 counter 作为随机种子的一部分，确保可重复性
         let mut rng = StdRng::seed_from_u64(self.seed.wrapping_add(self.counter));
         self.counter = self.counter.wrapping_add(1);
-        
+
         // 生成随机输入
         let input: Vec<f32> = (0..self.input_dim)
-            .map(|_| rng.gen_range(-1.0..1.0))
+            .map(|_| rng.random_range(-1.0..1.0))
             .collect();
         let input = Array1::from_vec(input);
-        
+
         // 计算输出: y = W * x + b + noise
         let mut output = Array1::<f32>::zeros(self.output_dim);
         for i in 0..self.output_dim {
@@ -119,7 +119,7 @@ impl TrainingData for SyntheticData {
                 sum += self.weight[i * self.input_dim + j] * input[j];
             }
             // 添加噪声
-            sum += rng.gen_range(-self.noise_scale..self.noise_scale);
+            sum += rng.random_range(-self.noise_scale..self.noise_scale);
             output[i] = sum;
         }
         
