@@ -1,8 +1,8 @@
 //
-//  GGB.swift
-//  GGB
+//  williw.swift
+//  williw
 //
-//  GGB 节点 Swift 包装类
+//  williw 节点 Swift 包装类
 //
 
 import Foundation
@@ -18,15 +18,15 @@ public enum NetworkType: String {
     case unknown = "unknown"
 }
 
-/// GGB 节点 Swift 包装类
-public class GgbNode {
+/// williw 节点 Swift 包装类
+public class WilliwNode {
     private var nativeHandle: OpaquePointer?
     
     /// 初始化节点
     public init() {
-        self.nativeHandle = ggb_node_create()
+        self.nativeHandle = williw_node_create()
         if nativeHandle == nil {
-            fatalError("Failed to create GGB node")
+            fatalError("Failed to create williw node")
         }
         
         // 设置设备信息回调
@@ -39,7 +39,7 @@ public class GgbNode {
     /// 设置设备信息回调，让 Rust 层可以通过回调获取真实设备信息
     private func setDeviceInfoCallback() {
         guard let handle = nativeHandle else { return }
-        ggb_node_set_device_callback(handle, deviceInfoCallback)
+        williw_node_set_device_callback(handle, deviceInfoCallback)
     }
     
     /// 设备信息回调函数（从 iOS 获取设备信息）
@@ -192,9 +192,9 @@ public class GgbNode {
     public func getCapabilities() -> String? {
         guard let handle = nativeHandle else { return nil }
         
-        if let jsonPtr = ggb_node_get_capabilities(handle) {
+        if let jsonPtr = williw_node_get_capabilities(handle) {
             let json = String(cString: jsonPtr)
-            ggb_string_free(jsonPtr)
+            williw_string_free(jsonPtr)
             return json
         }
         return nil
@@ -205,7 +205,7 @@ public class GgbNode {
         guard let handle = nativeHandle else { return }
         
         let result = type.rawValue.withCString { cString in
-            ggb_node_update_network_type(handle, cString)
+            williw_node_update_network_type(handle, cString)
         }
         
         if result != 0 {
@@ -223,7 +223,7 @@ public class GgbNode {
     public func updateBattery(level: Float, isCharging: Bool) {
         guard let handle = nativeHandle else { return }
         
-        let result = ggb_node_update_battery(handle, level, isCharging ? 1 : 0)
+        let result = williw_node_update_battery(handle, level, isCharging ? 1 : 0)
         if result != 0 {
             print("警告: 更新电池状态失败")
         }
@@ -265,25 +265,25 @@ public class GgbNode {
     /// 获取推荐的模型维度
     public func getRecommendedModelDim() -> Int {
         guard let handle = nativeHandle else { return 256 }
-        return Int(ggb_node_recommended_model_dim(handle))
+        return Int(williw_node_recommended_model_dim(handle))
     }
     
     /// 获取推荐的训练间隔（秒）
     public func getRecommendedTickInterval() -> UInt64 {
         guard let handle = nativeHandle else { return 10 }
-        return ggb_node_recommended_tick_interval(handle)
+        return williw_node_recommended_tick_interval(handle)
     }
     
     /// 检查是否应该暂停训练
     public func shouldPauseTraining() -> Bool {
         guard let handle = nativeHandle else { return false }
-        return ggb_node_should_pause_training(handle) != 0
+        return williw_node_should_pause_training(handle) != 0
     }
     
     /// 释放资源
     deinit {
         if let handle = nativeHandle {
-            ggb_node_destroy(handle)
+            williw_node_destroy(handle)
         }
     }
 }

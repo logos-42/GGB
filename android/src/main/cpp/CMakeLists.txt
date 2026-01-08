@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project("ggb")
+project("williw")
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -19,7 +19,7 @@ include_directories(
 add_library(
     ggb
     SHARED
-    ggb_jni.cpp
+    williw_jni.cpp
 )
 
 # 链接 Rust 库
@@ -30,9 +30,9 @@ find_library(
 )
 
 target_link_libraries(
-    ggb
+    williw
     ${log-lib}
     # 链接 Rust 编译的库
-    # ${RUST_LIB_DIR}/libggb.a 或 libggb.so
+    # ${RUST_LIB_DIR}/libwilliw.a 或 libwilliw.so
 )
 

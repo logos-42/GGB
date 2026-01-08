@@ -1,9 +1,9 @@
 //! 隐私保护功能演示
 //!
-//! 展示如何使用GGB的IP隐藏和隐私保护功能（基于 iroh）
+//! 展示如何使用williw的IP隐藏和隐私保护功能（基于 iroh）
 
-use GGB::config::{AppConfig, SecurityConfig};
-use GGB::privacy::crypto::security::{PrivacyChecker, TrafficObfuscator, IdentityProtector, utils};
+use williw::config::{AppConfig, SecurityConfig};
+use williw::privacy::crypto::security::{PrivacyChecker, TrafficObfuscator, IdentityProtector, utils};
 use iroh::NodeId;
 use std::time::Duration;
 

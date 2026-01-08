@@ -1,4 +1,4 @@
-//! GGB 库模块
+//! williw 库模块
 //!
 //! 将核心功能导出为库，以便测试和集成使用
 //! 使用 iroh 作为通讯模块，nori 作为加密手段
@@ -32,15 +32,15 @@ pub use consensus::{ConsensusConfig, ConsensusEngine};
 // 类型别名
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-/// GGB 应用
-pub struct GgbApp {
+/// williw 应用
+pub struct WilliwApp {
     config: PrivacyConfig,
     device_manager: DeviceManager,
     network: Option<comms::NetworkHandle>,
 }
 
-impl GgbApp {
-    /// 创建新的 GGB 应用
+impl WilliwApp {
+    /// 创建新的 williw 应用
     pub fn new(config: PrivacyConfig) -> Result<Self> {
         let device_manager = DeviceManager::new();
         

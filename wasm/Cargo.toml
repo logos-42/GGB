@@ -1,8 +1,8 @@
 [package]
-name = "ggb-wasm"
+name = "williw-wasm"
 version = "0.1.0"
 edition = "2021"
-description = "GGB去中心化算力系统WASM模块"
+description = "williw去中心化算力系统WASM模块"
 authors = ["Your Name <your.email@example.com>"]
 license = "MIT"
 

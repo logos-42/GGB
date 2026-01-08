@@ -51,9 +51,9 @@ pub struct NodeHandle {
 /// 创建新的节点实例
 ///
 /// # Safety
-/// 返回的指针必须通过 `ggb_node_destroy` 释放
+/// 返回的指针必须通过 `williw_node_destroy` 释放
 #[no_mangle]
-pub unsafe extern "C" fn ggb_node_create() -> *mut NodeHandle {
+pub unsafe extern "C" fn williw_node_create() -> *mut NodeHandle {
     let device_manager = DeviceManager::new();
     let handle = Box::new(NodeHandle {
         device_manager,
@@ -71,7 +71,7 @@ pub unsafe extern "C" fn ggb_node_create() -> *mut NodeHandle {
 /// ptr 必须是有效的节点句柄
 /// callback 必须是有效的函数指针，或者 NULL（表示清除回调）
 #[no_mangle]
-pub unsafe extern "C" fn ggb_node_set_device_callback(
+pub unsafe extern "C" fn williw_node_set_device_callback(
     ptr: *mut NodeHandle,
     callback: Option<DeviceInfoCallback>,
 ) -> c_int {
@@ -145,9 +145,9 @@ unsafe fn update_device_from_callback(handle: &mut NodeHandle) -> c_int {
 /// 销毁节点实例
 ///
 /// # Safety
-/// ptr 必须是通过 `ggb_node_create` 创建的有效指针
+/// ptr 必须是通过 `williw_node_create` 创建的有效指针
 #[no_mangle]
-pub unsafe extern "C" fn ggb_node_destroy(ptr: *mut NodeHandle) {
+pub unsafe extern "C" fn williw_node_destroy(ptr: *mut NodeHandle) {
     if !ptr.is_null() {
         let _ = Box::from_raw(ptr);
     }
@@ -157,9 +157,9 @@ pub unsafe extern "C" fn ggb_node_destroy(ptr: *mut NodeHandle) {
 ///
 /// # Safety
 /// ptr 必须是有效的节点句柄
-/// 返回的字符串必须通过 `ggb_string_free` 释放
+/// 返回的字符串必须通过 `williw_string_free` 释放
 #[no_mangle]
-pub unsafe extern "C" fn ggb_node_get_capabilities(
+pub unsafe extern "C" fn williw_node_get_capabilities(
     ptr: *const NodeHandle,
 ) -> *mut c_char {
     if ptr.is_null() {
@@ -187,7 +187,7 @@ pub unsafe extern "C" fn ggb_node_get_capabilities(
 /// ptr 必须是有效的节点句柄
 /// network_type_str 必须是有效的 C 字符串
 #[no_mangle]
-pub unsafe extern "C" fn ggb_node_update_network_type(
+pub unsafe extern "C" fn williw_node_update_network_type(
     ptr: *mut NodeHandle,
     network_type_str: *const c_char,
 ) -> c_int {
@@ -217,7 +217,7 @@ pub unsafe extern "C" fn ggb_node_update_network_type(
 /// # Safety
 /// ptr 必须是有效的节点句柄
 #[no_mangle]
-pub unsafe extern "C" fn ggb_node_refresh_device_info(ptr: *mut NodeHandle) -> c_int {
+pub unsafe extern "C" fn williw_node_refresh_device_info(ptr: *mut NodeHandle) -> c_int {
     if ptr.is_null() {
         return FfiError::InvalidArgument as c_int;
     }
@@ -231,7 +231,7 @@ pub unsafe extern "C" fn ggb_node_refresh_device_info(ptr: *mut NodeHandle) -> c
 /// # Safety
 /// ptr 必须是有效的节点句柄
 #[no_mangle]
-pub unsafe extern "C" fn ggb_node_update_battery(
+pub unsafe extern "C" fn williw_node_update_battery(
     ptr: *mut NodeHandle,
     level: f32,      // 0.0-1.0
     is_charging: c_int, // 0 = false, 1 = true
@@ -257,7 +257,7 @@ pub unsafe extern "C" fn ggb_node_update_battery(
 /// # Safety
 /// ptr 必须是通过 FFI 函数返回的有效字符串指针
 #[no_mangle]
-pub unsafe extern "C" fn ggb_string_free(ptr: *mut c_char) {
+pub unsafe extern "C" fn williw_string_free(ptr: *mut c_char) {
     if !ptr.is_null() {
         let _ = CString::from_raw(ptr);
     }
@@ -268,7 +268,7 @@ pub unsafe extern "C" fn ggb_string_free(ptr: *mut c_char) {
 /// # Safety
 /// ptr 必须是有效的节点句柄
 #[no_mangle]
-pub unsafe extern "C" fn ggb_node_recommended_model_dim(
+pub unsafe extern "C" fn williw_node_recommended_model_dim(
     ptr: *const NodeHandle,
 ) -> usize {
     if ptr.is_null() {
@@ -285,7 +285,7 @@ pub unsafe extern "C" fn ggb_node_recommended_model_dim(
 /// # Safety
 /// ptr 必须是有效的节点句柄
 #[no_mangle]
-pub unsafe extern "C" fn ggb_node_recommended_tick_interval(
+pub unsafe extern "C" fn williw_node_recommended_tick_interval(
     ptr: *const NodeHandle,
 ) -> u64 {
     if ptr.is_null() {
@@ -302,7 +302,7 @@ pub unsafe extern "C" fn ggb_node_recommended_tick_interval(
 /// # Safety
 /// ptr 必须是有效的节点句柄
 #[no_mangle]
-pub unsafe extern "C" fn ggb_node_should_pause_training(
+pub unsafe extern "C" fn williw_node_should_pause_training(
     ptr: *const NodeHandle,
 ) -> c_int {
     if ptr.is_null() {
@@ -325,52 +325,52 @@ mod tests {
     #[test]
     fn test_node_create_destroy() {
         unsafe {
-            let ptr = ggb_node_create();
+            let ptr = williw_node_create();
             assert!(!ptr.is_null());
-            ggb_node_destroy(ptr);
+            williw_node_destroy(ptr);
         }
     }
 
     #[test]
     fn test_get_capabilities() {
         unsafe {
-            let ptr = ggb_node_create();
-            let json_ptr = ggb_node_get_capabilities(ptr);
+            let ptr = williw_node_create();
+            let json_ptr = williw_node_get_capabilities(ptr);
             assert!(!json_ptr.is_null());
             
             let json = CStr::from_ptr(json_ptr).to_str().unwrap();
             assert!(json.contains("max_memory_mb"));
             
-            ggb_string_free(json_ptr);
-            ggb_node_destroy(ptr);
+            williw_string_free(json_ptr);
+            williw_node_destroy(ptr);
         }
     }
 
     #[test]
     fn test_update_network_type() {
         unsafe {
-            let ptr = ggb_node_create();
+            let ptr = williw_node_create();
             let wifi = CString::new("wifi").unwrap();
-            let result = ggb_node_update_network_type(ptr, wifi.as_ptr());
+            let result = williw_node_update_network_type(ptr, wifi.as_ptr());
             assert_eq!(result, FfiError::Success as c_int);
-            ggb_node_destroy(ptr);
+            williw_node_destroy(ptr);
         }
     }
 
     #[test]
     fn test_update_battery() {
         unsafe {
-            let ptr = ggb_node_create();
-            let result = ggb_node_update_battery(ptr, 0.75, 1);
+            let ptr = williw_node_create();
+            let result = williw_node_update_battery(ptr, 0.75, 1);
             assert_eq!(result, FfiError::Success as c_int);
-            ggb_node_destroy(ptr);
+            williw_node_destroy(ptr);
         }
     }
 
     #[test]
     fn test_set_device_callback() {
         unsafe {
-            let ptr = ggb_node_create();
+            let ptr = williw_node_create();
             
             // 测试设置回调
             extern "C" fn test_callback(
@@ -394,25 +394,25 @@ mod tests {
                 FfiError::Success as c_int
             }
             
-            let result = ggb_node_set_device_callback(ptr, Some(test_callback));
+            let result = williw_node_set_device_callback(ptr, Some(test_callback));
             assert_eq!(result, FfiError::Success as c_int);
             
             // 测试刷新设备信息
-            let refresh_result = ggb_node_refresh_device_info(ptr);
+            let refresh_result = williw_node_refresh_device_info(ptr);
             assert_eq!(refresh_result, FfiError::Success as c_int);
             
             // 验证设备信息已更新
-            let caps_json = ggb_node_get_capabilities(ptr);
+            let caps_json = williw_node_get_capabilities(ptr);
             assert!(!caps_json.is_null());
             let json_str = CStr::from_ptr(caps_json).to_str().unwrap();
             assert!(json_str.contains("\"network_type\":\"WiFi\""));
-            ggb_string_free(caps_json);
+            williw_string_free(caps_json);
             
             // 测试清除回调
-            let clear_result = ggb_node_set_device_callback(ptr, None);
+            let clear_result = williw_node_set_device_callback(ptr, None);
             assert_eq!(clear_result, FfiError::Success as c_int);
             
-            ggb_node_destroy(ptr);
+            williw_node_destroy(ptr);
         }
     }
 }

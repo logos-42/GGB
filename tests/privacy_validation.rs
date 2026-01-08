@@ -6,9 +6,9 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 use anyhow::Result;
 
-use ggb::config::{AppConfig, PrivacyPerformanceConfig, BalanceMode};
-use ggb::quic::PrivacyOverlay;
-use ggb::routing::PrivacyPathSelector;
+use williw::config::{AppConfig, PrivacyPerformanceConfig, BalanceMode};
+use williw::quic::PrivacyOverlay;
+use williw::routing::PrivacyPathSelector;
 
 /// 测试IP隐藏效果
 #[tokio::test]

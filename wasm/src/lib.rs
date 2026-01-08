@@ -1,4 +1,4 @@
-//! GGB WASM 模块
+//! williw WASM 模块
 //!
 //! 为Web环境提供的去中心化算力系统WASM绑定
 
@@ -10,17 +10,17 @@ use sha3::Digest;
 #[wasm_bindgen(start)]
 pub fn init() {
     // 使用 web_sys 的 console 进行日志输出
-    web_sys::console::log_1(&"GGB WASM 模块已初始化".into());
+    web_sys::console::log_1(&"williw WASM 模块已初始化".into());
 }
 
-/// GGB WASM 应用实例
+/// williw WASM 应用实例
 #[wasm_bindgen]
-pub struct GgbWasmApp {
+pub struct WilliwWasmApp {
     // 内部状态
     initialized: bool,
 }
 
-/// GGB 隐私配置
+/// williw 隐私配置
 #[wasm_bindgen]
 #[derive(Clone, Copy, Debug)]
 pub enum PrivacyLevel {
@@ -77,12 +77,12 @@ impl DeviceCapabilities {
 }
 
 #[wasm_bindgen]
-impl GgbWasmApp {
-    /// 创建新的GGB WASM应用
+impl WilliwWasmApp {
+    /// 创建新的williw WASM应用
     #[wasm_bindgen(constructor)]
-    pub fn new() -> GgbWasmApp {
-        web_sys::console::log_1(&"创建新的GGB WASM应用".into());
-        GgbWasmApp {
+    pub fn new() -> WilliwWasmApp {
+        web_sys::console::log_1(&"创建新的williw WASM应用".into());
+        WilliwWasmApp {
             initialized: false,
         }
     }
@@ -90,9 +90,9 @@ impl GgbWasmApp {
     /// 初始化应用
     #[wasm_bindgen]
     pub fn initialize(&mut self) -> bool {
-        web_sys::console::log_1(&"初始化GGB WASM应用...".into());
+        web_sys::console::log_1(&"初始化williw WASM应用...".into());
         self.initialized = true;
-        web_sys::console::log_1(&"GGB WASM应用初始化完成".into());
+        web_sys::console::log_1(&"williw WASM应用初始化完成".into());
         true
     }
     
@@ -157,7 +157,7 @@ impl GgbWasmApp {
     /// 销毁应用
     #[wasm_bindgen]
     pub fn destroy(&mut self) {
-        web_sys::console::log_1(&"销毁GGB WASM应用".into());
+        web_sys::console::log_1(&"销毁williw WASM应用".into());
         self.initialized = false;
     }
 }

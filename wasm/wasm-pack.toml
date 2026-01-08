@@ -1,11 +1,11 @@
 # wasm-pack 配置文件
 
 [package]
-name = "ggb-wasm"
+name = "williw-wasm"
 version = "0.1.0"
-description = "GGB去中心化算力系统WASM模块"
+description = "williw去中心化算力系统WASM模块"
 license = "MIT"
-repository = "https://github.com/yourusername/ggb"
+repository = "https://github.com/yourusername/williw"
 authors = ["Your Name <your.email@example.com>"]
 
 [lib]

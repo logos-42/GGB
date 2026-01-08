@@ -1,6 +1,6 @@
 // Cloudflare Workers入口点
 
-import { WorkersApp } from '../pkg/ggb_wasm.js';
+import { WorkersApp } from '../pkg/williw_wasm.js';
 
 // 初始化WASM模块
 let wasmApp = null;
@@ -9,12 +9,12 @@ let wasmApp = null;
 async function initWasm() {
     try {
         // 加载WASM模块
-        const wasm = await import('../pkg/ggb_wasm_bg.wasm');
+        const wasm = await import('../pkg/williw_wasm_bg.wasm');
         
         // 创建配置
         const config = {
             edge_server: {
-                name: "ggb-edge-server",
+                name: "williw-edge-server",
                 max_nodes: 1000,
                 heartbeat_timeout_secs: 60,
                 default_matching_strategy: "Hybrid",

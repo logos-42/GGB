@@ -1,4 +1,4 @@
-name = "ggb"
+name = "williw"
 type = "rust"
 account_id = "yuanjieliu"
 workers_dev = true
@@ -11,7 +11,7 @@ upload = { format = "wasm" }
 
 [build.upload]
 dir = "wasm/pkg"
-main = "./ggb_wasm.js"
+main = "./williw_wasm.js"
 
 [vars]
 NODE_ENV = "production"
@@ -32,12 +32,12 @@ ZK_PROOF_ENABLED = "true"
 [[rules]]
 type = "Worker"
 pattern = "api/*"
-script = "ggb-edge-server"
+script = "williw-edge-server"
 
 [[rules]]
 type = "Worker"
 pattern = "ws/*"
-script = "ggb-edge-server"
+script = "williw-edge-server"
 
 [triggers]
 crons = ["*/5 * * * *"]  # 每5分钟执行一次维护任务

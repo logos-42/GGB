@@ -1,8 +1,8 @@
-# GGB 隐私保护指南
+# williw 隐私保护指南
 
 ## 概述
 
-本文档介绍如何使用 GGB 的隐私保护功能，包括 IP 隐藏、中继网络、流量混淆和身份保护。
+本文档介绍如何使用 williw 的隐私保护功能，包括 IP 隐藏、中继网络、流量混淆和身份保护。
 
 ## 核心功能
 
@@ -178,7 +178,7 @@ max_connections = 100  # 允许更多连接
 
 ### 检查 IP 暴露
 ```rust
-use GGB::security::PrivacyChecker;
+use williw::security::PrivacyChecker;
 
 let checker = PrivacyChecker::new(config);
 let addr = "/ip4/192.168.1.100/tcp/9001".parse().unwrap();
@@ -271,7 +271,7 @@ tail -f node.log | grep -E "(安全|中继|身份保护|警告)"
 
 ### 自定义流量混淆
 ```rust
-use GGB::security::TrafficObfuscator;
+use williw::security::TrafficObfuscator;
 
 let mut obfuscator = TrafficObfuscator::new(config);
 obfuscator.set_padding_sizes(vec![256, 512, 1024]); // 自定义填充大小
@@ -280,7 +280,7 @@ obfuscator.set_rotation_interval(Duration::from_secs(600)); // 每10分钟更换
 
 ### 自定义身份保护
 ```rust
-use GGB::security::IdentityProtector;
+use williw::security::IdentityProtector;
 
 let protector = IdentityProtector::new(config);
 protector.set_rotation_interval(Duration::from_secs(1800)); // 每30分钟更换

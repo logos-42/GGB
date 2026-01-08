@@ -4,7 +4,7 @@ param(
     [int]$Duration = 60
 )
 
-Write-Host "=== GGB Multi-Node Test ===" -ForegroundColor Green
+Write-Host "=== williw Multi-Node Test ===" -ForegroundColor Green
 Write-Host "Nodes: $Nodes"
 Write-Host "Duration: $Duration seconds"
 Write-Host ""
@@ -31,10 +31,10 @@ for ($i = 0; $i -lt $Nodes; $i++) {
     
     $quicPort = 9234 + $nodeId
     # Use debug build if release doesn't work
-    $exePath = if (Test-Path "C:\temp\ggb-target\debug\GGB.exe") {
-        "C:\temp\ggb-target\debug\GGB.exe"
+    $exePath = if (Test-Path "C:\temp\williw-target\debug\williw.exe") {
+        "C:\temp\williw-target\debug\williw.exe"
     } else {
-        (Resolve-Path "target\release\GGB.exe")
+        (Resolve-Path "target\release\williw.exe")
     }
     $job = Start-Job -ScriptBlock {
         param($nodeId, $statsFile, $logFile, $deviceType, $exePath, $quicPort)

@@ -2,8 +2,8 @@
 //!
 //! 测试IP隐藏、中继连接、隐私保护等功能
 
-use GGB::config::{AppConfig, SecurityConfig};
-use GGB::privacy::crypto::security::{PrivacyChecker, TrafficObfuscator, IdentityProtector};
+use williw::config::{AppConfig, SecurityConfig};
+use williw::privacy::crypto::security::{PrivacyChecker, TrafficObfuscator, IdentityProtector};
 use iroh::NodeAddr;
 use std::path::Path;
 
@@ -183,7 +183,7 @@ fn test_privacy_advice() {
 /// 测试安全工具函数（适配 iroh）
 #[test]
 fn test_security_utils() {
-    use GGB::privacy::crypto::security::utils;
+    use williw::privacy::crypto::security::utils;
 
     // 测试是否为中继地址 - 对于 iroh，包含 "circuit" 或 "relay" 的地址被视为中继地址
     let relay_addr = "/ip4/127.0.0.1/tcp/9001/p2p/12D3KooWRelay/p2p-circuit".to_string();

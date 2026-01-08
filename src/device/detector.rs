@@ -188,7 +188,7 @@ impl DeviceDetector {
     /// 检测网络类型（平台特定）
     fn detect_network_type() -> NetworkType {
         // 首先检查环境变量（用于测试）
-        if let Ok(net_type) = std::env::var("GGB_NETWORK_TYPE") {
+        if let Ok(net_type) = std::env::var("WILLIW_NETWORK_TYPE") {
             match net_type.as_str() {
                 "wifi" => return NetworkType::WiFi,
                 "5g" => return NetworkType::Cellular5G,
@@ -218,9 +218,9 @@ impl DeviceDetector {
     /// 检测电池状态（平台特定）
     fn detect_battery() -> (Option<f32>, bool) {
         // 首先检查环境变量（用于测试）
-        if let Ok(level) = std::env::var("GGB_BATTERY_LEVEL") {
+        if let Ok(level) = std::env::var("WILLIW_BATTERY_LEVEL") {
             if let Ok(level_f) = level.parse::<f32>() {
-                let charging = std::env::var("GGB_BATTERY_CHARGING")
+                let charging = std::env::var("WILLIW_BATTERY_CHARGING")
                     .map(|v| v == "true")
                     .unwrap_or(false);
                 return (Some(level_f.clamp(0.0, 1.0)), charging);

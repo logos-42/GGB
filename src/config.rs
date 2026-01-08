@@ -274,7 +274,7 @@ impl AppConfig {
 
         // 根据设备能力调整推理配置
         // 支持通过环境变量选择损失函数类型
-        let loss_type = if let Ok(loss_env) = std::env::var("GGB_LOSS_TYPE") {
+        let loss_type = if let Ok(loss_env) = std::env::var("WILLIW_LOSS_TYPE") {
             match loss_env.to_uppercase().as_str() {
                 "CROSSENTROPY" | "CE" => {
                     println!("[配置] 使用交叉熵损失函数");
@@ -347,7 +347,7 @@ impl AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         // 检查环境变量，支持使用预设的设备配置
-        let capabilities = if let Ok(device_type) = std::env::var("GGB_DEVICE_TYPE") {
+        let capabilities = if let Ok(device_type) = std::env::var("WILLIW_DEVICE_TYPE") {
             match device_type.as_str() {
                 "desktop" | "default" => {
                     println!("[配置] 使用默认桌面设备配置");

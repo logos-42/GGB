@@ -3,7 +3,7 @@
 #include <string>
 #include <android/log.h>
 
-#define LOG_TAG "GgbJNI"
+#define LOG_TAG "WilliwJNI"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
@@ -14,17 +14,17 @@ static JavaVM* g_jvm = nullptr;
 
 // Rust FFI 函数声明
 extern "C" {
-    void* ggb_node_create();
-    void ggb_node_destroy(void* handle);
-    char* ggb_node_get_capabilities(void* handle);
-    int ggb_node_update_network_type(void* handle, const char* network_type);
-    int ggb_node_update_battery(void* handle, float level, int is_charging);
-    unsigned long ggb_node_recommended_model_dim(void* handle);
-    unsigned long ggb_node_recommended_tick_interval(void* handle);
-    int ggb_node_should_pause_training(void* handle);
-    void ggb_string_free(char* ptr);
-    int ggb_node_set_device_callback(void* handle, void* callback);
-    int ggb_node_refresh_device_info(void* handle);
+    void* williw_node_create();
+    void williw_node_destroy(void* handle);
+    char* williw_node_get_capabilities(void* handle);
+    int williw_node_update_network_type(void* handle, const char* network_type);
+    int williw_node_update_battery(void* handle, float level, int is_charging);
+    unsigned long williw_node_recommended_model_dim(void* handle);
+    unsigned long williw_node_recommended_tick_interval(void* handle);
+    int williw_node_should_pause_training(void* handle);
+    void williw_string_free(char* ptr);
+    int williw_node_set_device_callback(void* handle, void* callback);
+    int williw_node_refresh_device_info(void* handle);
 }
 
 // 设备信息回调函数（从 Android 获取设备信息）
@@ -203,56 +203,56 @@ extern "C" int android_get_device_info(
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_ggb_GgbNode_nativeCreate(JNIEnv* env, jobject thiz) {
-    void* handle = ggb_node_create();
+Java_com_williw_WilliwNode_nativeCreate(JNIEnv* env, jobject thiz) {
+    void* handle = williw_node_create();
     return reinterpret_cast<jlong>(handle);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_ggb_GgbNode_nativeDestroy(JNIEnv* env, jobject thiz, jlong handle) {
-    ggb_node_destroy(reinterpret_cast<void*>(handle));
+Java_com_williw_WilliwNode_nativeDestroy(JNIEnv* env, jobject thiz, jlong handle) {
+    williw_node_destroy(reinterpret_cast<void*>(handle));
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_ggb_GgbNode_nativeGetCapabilities(JNIEnv* env, jobject thiz, jlong handle) {
-    char* json = ggb_node_get_capabilities(reinterpret_cast<void*>(handle));
+Java_com_williw_WilliwNode_nativeGetCapabilities(JNIEnv* env, jobject thiz, jlong handle) {
+    char* json = williw_node_get_capabilities(reinterpret_cast<void*>(handle));
     if (!json) {
         return env->NewStringUTF("{}");
     }
     jstring result = env->NewStringUTF(json);
-    ggb_string_free(json);
+    williw_string_free(json);
     return result;
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_ggb_GgbNode_nativeUpdateNetworkType(JNIEnv* env, jobject thiz, jlong handle, jstring network_type) {
+Java_com_williw_WilliwNode_nativeUpdateNetworkType(JNIEnv* env, jobject thiz, jlong handle, jstring network_type) {
     const char* net_type = env->GetStringUTFChars(network_type, nullptr);
     if (!net_type) {
         return 1;
     }
-    int result = ggb_node_update_network_type(reinterpret_cast<void*>(handle), net_type);
+    int result = williw_node_update_network_type(reinterpret_cast<void*>(handle), net_type);
     env->ReleaseStringUTFChars(network_type, net_type);
     return result;
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_ggb_GgbNode_nativeUpdateBattery(JNIEnv* env, jobject thiz, jlong handle, jfloat level, jboolean is_charging) {
-    return ggb_node_update_battery(reinterpret_cast<void*>(handle), level, is_charging ? 1 : 0);
+Java_com_williw_WilliwNode_nativeUpdateBattery(JNIEnv* env, jobject thiz, jlong handle, jfloat level, jboolean is_charging) {
+    return williw_node_update_battery(reinterpret_cast<void*>(handle), level, is_charging ? 1 : 0);
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_ggb_GgbNode_nativeRecommendedModelDim(JNIEnv* env, jobject thiz, jlong handle) {
-    return static_cast<jlong>(ggb_node_recommended_model_dim(reinterpret_cast<void*>(handle)));
+Java_com_williw_WilliwNode_nativeRecommendedModelDim(JNIEnv* env, jobject thiz, jlong handle) {
+    return static_cast<jlong>(williw_node_recommended_model_dim(reinterpret_cast<void*>(handle)));
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_ggb_GgbNode_nativeRecommendedTickInterval(JNIEnv* env, jobject thiz, jlong handle) {
-    return static_cast<jlong>(ggb_node_recommended_tick_interval(reinterpret_cast<void*>(handle)));
+Java_com_williw_WilliwNode_nativeRecommendedTickInterval(JNIEnv* env, jobject thiz, jlong handle) {
+    return static_cast<jlong>(williw_node_recommended_tick_interval(reinterpret_cast<void*>(handle)));
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_ggb_GgbNode_nativeShouldPauseTraining(JNIEnv* env, jobject thiz, jlong handle) {
-    return ggb_node_should_pause_training(reinterpret_cast<void*>(handle));
+Java_com_williw_WilliwNode_nativeShouldPauseTraining(JNIEnv* env, jobject thiz, jlong handle) {
+    return williw_node_should_pause_training(reinterpret_cast<void*>(handle));
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -262,8 +262,8 @@ Java_com_ggb_GgbNode_nativeStringFree(JNIEnv* env, jobject thiz, jstring ptr) {
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_ggb_GgbNode_nativeSetDeviceCallback(JNIEnv* env, jobject thiz, jlong handle, jobject context) {
-    // 保存 GgbNode 实例的全局引用（用于回调中调用方法）
+Java_com_williw_WilliwNode_nativeSetDeviceCallback(JNIEnv* env, jobject thiz, jlong handle, jobject context) {
+    // 保存 WilliwNode 实例的全局引用（用于回调中调用方法）
     if (g_ggb_node) {
         env->DeleteGlobalRef(g_ggb_node);
     }
@@ -279,7 +279,7 @@ Java_com_ggb_GgbNode_nativeSetDeviceCallback(JNIEnv* env, jobject thiz, jlong ha
     env->GetJavaVM(&g_jvm);
     
     // 设置回调函数
-    ggb_node_set_device_callback(reinterpret_cast<void*>(handle), reinterpret_cast<void*>(android_get_device_info));
+    williw_node_set_device_callback(reinterpret_cast<void*>(handle), reinterpret_cast<void*>(android_get_device_info));
 }
 
 // JNI_OnLoad 和 JNI_OnUnload 用于管理全局引用
@@ -309,7 +309,7 @@ JNI_OnUnload(JavaVM* vm, void* reserved) {
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_ggb_GgbNode_nativeRefreshDeviceInfo(JNIEnv* env, jobject thiz, jlong handle) {
-    return ggb_node_refresh_device_info(reinterpret_cast<void*>(handle));
+Java_com_williw_WilliwNode_nativeRefreshDeviceInfo(JNIEnv* env, jobject thiz, jlong handle) {
+    return williw_node_refresh_device_info(reinterpret_cast<void*>(handle));
 }
 

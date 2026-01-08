@@ -1,6 +1,6 @@
 //! 集成测试：验证多节点协同训练
 
-use GGB::{
+use williw::{
     comms::CommsConfig,
     consensus::ConsensusConfig,
     crypto::CryptoConfig,
@@ -162,7 +162,7 @@ async fn test_multi_node_discovery() {
             1 => "mid",
             _ => "high",
         };
-        cmd.env("GGB_DEVICE_TYPE", device_type);
+        cmd.env("WILLIW_DEVICE_TYPE", device_type);
         
         println!("启动节点 {} (设备类型: {})", node_id, device_type);
         

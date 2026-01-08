@@ -1,5 +1,5 @@
 [package]
-name = "GGB"
+name = "williw"
 version = "0.1.1"
 edition = "2021"
 
@@ -65,7 +65,7 @@ zk_proof = ["nori"]
 
 # 为 Android 构建配置库类型
 [lib]
-name = "GGB"
+name = "williw"
 path = "src/lib.rs"
 crate-type = ["cdylib", "staticlib", "rlib"]
 

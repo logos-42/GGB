@@ -1,12 +1,12 @@
 //
-//  GGB.h
-//  GGB
+//  williw.h
+//  williw
 //
 //  Objective-C 桥接头文件
 //
 
-#ifndef GGB_h
-#define GGB_h
+#ifndef williw_h
+#define williw_h
 
 #import <Foundation/Foundation.h>
 

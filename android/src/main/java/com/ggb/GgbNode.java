@@ -1,4 +1,4 @@
-package com.ggb;
+package com.williw;
 
 import android.app.ActivityManager;
 import android.content.Context;
@@ -12,11 +12,11 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 
 /**
- * GGB 节点 Java 包装类
- * 
+ * williw 节点 Java 包装类
+ *
  * 提供 Android 平台特定的设备能力检测和节点管理功能
  */
-public class GgbNode {
+public class WilliwNode {
     private static final String TAG = "GgbNode";
     
     private long nativeHandle = 0;
@@ -29,11 +29,11 @@ public class GgbNode {
     /**
      * 创建新的节点实例
      */
-    public GgbNode(Context context) {
+    public WilliwNode(Context context) {
         this.context = context;
         this.nativeHandle = nativeCreate();
         if (nativeHandle == 0) {
-            throw new RuntimeException("Failed to create GGB node");
+            throw new RuntimeException("Failed to create williw node");
         }
         
         // 设置设备信息回调

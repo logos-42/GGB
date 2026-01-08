@@ -6,9 +6,9 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use anyhow::Result;
 
-use ggb::config::{AppConfig, PrivacyPerformanceConfig, BalanceMode};
-use ggb::routing::{ConnectionQualityAnalyzer, PrivacyPathSelector, PathManager};
-use ggb::quic::{PerformanceOptimizedQuic, PrivacyOverlay};
+use williw::config::{AppConfig, PrivacyPerformanceConfig, BalanceMode};
+use williw::routing::{ConnectionQualityAnalyzer, PrivacyPathSelector, PathManager};
+use williw::quic::{PerformanceOptimizedQuic, PrivacyOverlay};
 
 /// 测试配置文件加载
 #[test]

@@ -1,8 +1,8 @@
-# GGB 去中心化训练节点
+# williw 去中心化训练节点
 
-**GGB (Geo-Gossip Base)** - 地理流言基础平台
+**williw** - 地理流言基础平台
 
-面向 Geo-Similarity-Weighted Gossip 的 Rust 节点实现，集成真实推理张量、基于 iroh 的 P2P 通信、地理 + 嵌入双指标拓扑、以及 Web3 签名 / 质押 / 信誉系统，可直接部署到 Base 网络环境。
+面向 Geo-Similarity-Weighted iroh 的 Rust 节点实现，集成真实推理张量、基于 iroh 的 P2P 通信、地理 + 嵌入双指标拓扑、以及 Web3 签名 / 质押 / 信誉系统，可直接部署到 Base 网络环境。
 
 ## 技术栈
 
@@ -110,7 +110,7 @@ cargo run            # 运行节点，默认随机Geo位置 & 128维模型
 - 拓扑评分详情
 - QUIC 监听端口
 
-默认 Gossip 主题为 `ggb-training`，可通过环境变量和命令行参数自定义。
+默认 Gossip 主题为 `williw-training`，可通过环境变量和命令行参数自定义。
 
 ### 移动设备适配
 
@@ -119,10 +119,10 @@ cargo run            # 运行节点，默认随机Geo位置 & 128维模型
 **环境变量配置**（用于测试）：
 ```bash
 # 设置设备类型
-export GGB_DEVICE_TYPE=low    # low/mid/high
-export GGB_NETWORK_TYPE=wifi   # wifi/4g/5g
-export GGB_BATTERY_LEVEL=0.75  # 0.0-1.0
-export GGB_BATTERY_CHARGING=true
+export WILLIW_DEVICE_TYPE=low    # low/mid/high
+export WILLIW_NETWORK_TYPE=wifi   # wifi/4g/5g
+export WILLIW_BATTERY_LEVEL=0.75  # 0.0-1.0
+export WILLIW_BATTERY_CHARGING=true
 
 cargo run
 ```
@@ -160,16 +160,16 @@ cargo run -- --model-dim 512 -- --quic-port 9236 -- --stats-output stats.json
 **环境变量配置**：
 ```bash
 # 设置 checkpoint 目录
-export GGB_CHECKPOINT_DIR=./checkpoints
+export WILLIW_CHECKPOINT_DIR=./checkpoints
 
 # 设置学习率
-export GGB_LEARNING_RATE=0.001
+export WILLIW_LEARNING_RATE=0.001
 
 # 启用训练模式
-export GGB_USE_TRAINING=true
+export WILLIW_USE_TRAINING=true
 
 # 设置 QUIC 端口
-export GGB_QUIC_PORT=9235
+export WILLIW_QUIC_PORT=9235
 ```
 
 ## 测试与验证
@@ -222,7 +222,7 @@ python tools/analyze_training.py test_output/
 ### Android
 
 Android 集成代码位于 `android/` 目录，包含：
-- Java 包装类 (`GgbNode.java`)
+- Java 包装类 (`WilliwNode.java`)
 - 设备能力检测（网络、电池）
 - JNI 绑定配置
 
@@ -231,7 +231,7 @@ Android 集成代码位于 `android/` 目录，包含：
 ### iOS
 
 iOS 集成代码位于 `ios/` 目录，包含：
-- Swift 包装类 (`GGB.swift`)
+- Swift 包装类 (`Williw.swift`)
 - 设备能力检测（网络、电池）
 - XCframework 构建配置
 
@@ -249,7 +249,7 @@ iOS 集成代码位于 `ios/` 目录，包含：
 
 ```bash
 # 设置 checkpoint 目录
-export GGB_CHECKPOINT_DIR=./checkpoints
+export WILLIW_CHECKPOINT_DIR=./checkpoints
 cargo run
 ```
 
@@ -260,7 +260,7 @@ cargo run
 
 ### PyTorch 模型转换
 
-如果您的模型使用 PyTorch 训练，可以使用转换工具将其转换为 GGB 支持的格式：
+如果您的模型使用 PyTorch 训练，可以使用转换工具将其转换为 williw 支持的格式：
 
 ```bash
 # 转换 PyTorch 模型为 .npy 格式
@@ -281,15 +281,15 @@ cargo run -- --model-path model.npy --model-dim 512
 
 ```bash
 # 启用训练模式
-export GGB_USE_TRAINING=true
-export GGB_LEARNING_RATE=0.001
+export WILLIW_USE_TRAINING=true
+export WILLIW_LEARNING_RATE=0.001
 cargo run
 ```
 
 **注意**：当前实现使用简化的线性模型进行训练。对于复杂的神经网络模型，建议：
 1. 使用转换工具将 PyTorch 模型转换为 .npy
 2. 在 Python 端训练模型
-3. 定期将更新后的参数导出为 .npy 供 GGB 使用
+3. 定期将更新后的参数导出为 .npy 供 williw 使用
 
 ## 隐私保护
 
@@ -407,7 +407,7 @@ connection_pool_size = 10
 ## 贡献与开发
 
 ### 仓库
-仓库：`git@github.com:logos-42/GGB.git`
+仓库：`git@github.com:logos-42/williw.git`
 
 当前默认分支为 `master`，欢迎在此基础上提交 PR 或扩展模块（例如 WebRTC、治理合约集成等）。
 

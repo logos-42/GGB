@@ -47,9 +47,9 @@ for ($i = 0; $i -lt $ANDROID_ABIS.Length; $i++) {
     New-Item -ItemType Directory -Force -Path $jniLibsDir | Out-Null
     
     # 查找生成的库文件
-    $libPath1 = Join-Path $TARGET_DIR "$target\release\libggb.so"
-    $libPath2 = Join-Path $TARGET_DIR "$target\release\libGGB.so"
-    $destPath = Join-Path $jniLibsDir "libggb.so"
+    $libPath1 = Join-Path $TARGET_DIR "$target\release\libwilliw.so"
+    $libPath2 = Join-Path $TARGET_DIR "$target\release\libWilliw.so"
+    $destPath = Join-Path $jniLibsDir "libwilliw.so"
     
     if (Test-Path $libPath1) {
         Copy-Item $libPath1 $destPath -Force
