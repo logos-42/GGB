@@ -2,9 +2,7 @@ use crate::comms::{CommsConfig, BandwidthBudgetConfig};
 use crate::consensus::ConsensusConfig;
 use crate::crypto::CryptoConfig;
 use crate::device::{DeviceCapabilities, DeviceManager};
-// use crate::inference::InferenceConfig;
 // use crate::topology::TopologyConfig;
-// use crate::inference::LossType;
 // use iroh::NodeAddr;  // 注释掉，因为API可能已改变
 use serde::{Deserialize, Serialize};
 

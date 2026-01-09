@@ -5,13 +5,14 @@
 use anyhow::{anyhow, Result};
 use parking_lot::RwLock;
 
-use super::{EncryptionAlgorithm, HighPerformanceCrypto, HighPerformanceCryptoConfig};
+use crate::crypto::{EncryptionAlgorithm, HighPerformanceCrypto, HighPerformanceCryptoConfig};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use aes::Aes256;
 use cbc::{Decryptor, Encryptor};
 use block_padding::Pkcs7;
 use blake3::Hasher;
+use aes::cipher::KeyIvInit;
 
 
 
@@ -116,14 +117,15 @@ impl ZeroCopyEncryption {
     
     fn encrypt_aes256_in_place(&self, data: &mut [u8], key: &[u8]) -> Result<()> {
         let iv = [0u8; 16];
-        let cipher = Encryptor::<Aes256, Pkcs7>::new(key, &iv)
+        let cipher = cbc::Encryptor::<Aes256>::new_from_slices(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
-        
-        // 使用 encrypt_padded 方法处理填充
-        let mut buffer = vec![0; data.len() + 16]; // 预留填充空间
-        let len = cipher.encrypt_padded(data, &mut buffer)
+
+        // 使用 encrypt_padded_mut 方法处理填充
+        let mut buffer = vec![0u8; data.len() + 16]; // 预留填充空间
+        buffer[..data.len()].copy_from_slice(data);
+        let len = cipher.encrypt_padded_mut::<Pkcs7>(&mut buffer, data.len())
             .map_err(|e| anyhow!("AES256加密失败: {}", e))?;
-        
+
         if len == data.len() {
             data.copy_from_slice(&buffer[..len]);
             Ok(())
@@ -133,17 +135,17 @@ impl ZeroCopyEncryption {
             Err(anyhow!("AES256加密后数据大小不匹配"))
         }
     }
-    
+
     fn decrypt_aes256_in_place(&self, data: &mut [u8], key: &[u8]) -> Result<()> {
         let iv = [0u8; 16];
-        let cipher = Decryptor::<Aes256, Pkcs7>::new(key, &iv)
+        let cipher = Decryptor::<Aes256>::new_from_slices(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
-        
-        // 使用 decrypt_padded 方法处理填充
-        let mut buffer = vec![0; data.len()];
-        let len = cipher.decrypt_padded(data, &mut buffer)
+
+        // 使用 decrypt_padded_mut 方法处理填充
+        let mut buffer = data.to_vec();
+        let len = cipher.decrypt_padded_mut::<Pkcs7>(&mut buffer, buffer.len())
             .map_err(|e| anyhow!("AES256解密失败: {}", e))?;
-        
+
         if len == data.len() {
             data.copy_from_slice(&buffer[..len]);
             Ok(())

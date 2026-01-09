@@ -249,3 +249,66 @@ pub fn detect_battery() -> (Option<f32>, bool) {
     
     (None, false)
 }
+
+/// 检测 GPU 使用率
+pub fn detect_gpu_usage() -> Vec<crate::device::types::GpuUsageInfo> {
+    use crate::device::types::GpuUsageInfo;
+    let mut gpu_usages = Vec::new();
+
+    // 方法1: 使用 powermetrics 检测 GPU 使用率（需要管理员权限）
+    if let Ok(output) = Command::new("powermetrics")
+        .args(&["--samplers", "gpu_power", "-i", "1000", "-n", "1"])
+        .output()
+    {
+        if let Ok(output_str) = String::from_utf8(output.stdout) {
+            // 解析 GPU 使用率
+            for line in output_str.lines() {
+                if line.contains("GPU active") {
+                    if let Some(value_str) = line.split(':').nth(1) {
+                        if let Ok(value) = value_str.trim().trim_end_matches('%').parse::<f32>() {
+                            gpu_usages.push(GpuUsageInfo {
+                                gpu_name: "Apple GPU (Metal)".to_string(),
+                                usage_percent: value.clamp(0.0, 100.0),
+                                memory_used_mb: None,
+                                memory_total_mb: None,
+                                temperature: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 方法2: 使用 system_profiler 获取 GPU 信息
+    if gpu_usages.is_empty() {
+        if let Ok(output) = Command::new("system_profiler")
+            .args(&["SPDisplaysDataType"])
+            .output()
+        {
+            if let Ok(output_str) = String::from_utf8(output.stdout) {
+                // 提取 GPU 名称
+                if let Some(gpu_name) = output_str
+                    .lines()
+                    .find(|line| line.contains("Chipset Model:"))
+                    .map(|line| {
+                        line.trim_start_matches("Chipset Model:")
+                            .trim()
+                            .to_string()
+                    })
+                {
+                    gpu_usages.push(GpuUsageInfo {
+                        gpu_name,
+                        usage_percent: 0.0, // 无法获取实时使用率
+                        memory_used_mb: None,
+                        memory_total_mb: None,
+                        temperature: None,
+                    });
+                }
+            }
+        }
+    }
+
+    gpu_usages
+}
+

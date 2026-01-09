@@ -45,3 +45,19 @@ pub enum GpuComputeApi {
     DirectX,   // Windows DirectX 12
 }
 
+/// GPU 使用率信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GpuUsageInfo {
+    /// GPU 名称
+    pub gpu_name: String,
+    /// GPU 使用率（0-100%）
+    pub usage_percent: f32,
+    /// GPU 显存使用量（MB）
+    pub memory_used_mb: Option<u64>,
+    /// GPU 显存总量（MB）
+    pub memory_total_mb: Option<u64>,
+    /// GPU 温度（摄氏度）
+    pub temperature: Option<f32>,
+}
+
+

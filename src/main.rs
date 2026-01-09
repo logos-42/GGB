@@ -6,7 +6,6 @@ mod crypto;
 mod device;
 #[cfg(feature = "ffi")]
 mod ffi;
-mod inference;
 mod node;
 mod stats;
 mod topology;

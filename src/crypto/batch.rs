@@ -5,8 +5,8 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use super::high_performance::HighPerformanceCrypto;
-use super::EncryptionAlgorithm;
+use crate::crypto::high_performance::HighPerformanceCrypto;
+use crate::crypto::EncryptionAlgorithm;
 
 impl HighPerformanceCrypto {
     /// 批量加密（并行处理）

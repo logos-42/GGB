@@ -1,10 +1,10 @@
-//! 加密模块 - 提供高性能、隐私保护的加密功能
-//! 
+//! 加密模块 - 提供高性能的加密功能
+//!
 //! 本模块包含：
-//! 1. 基础加密功能（签名、验证）
+//! 1. Solana 基础加密功能（签名、验证）
 //! 2. 高性能加密引擎
 //! 3. 硬件加速加密
-//! 4. 选择性加密
+//! 4. 批量加密
 //! 5. 零拷贝加密
 
 // 导出子模块
@@ -12,7 +12,6 @@ pub mod base;
 pub mod high_performance;
 pub mod batch;
 pub mod hardware;
-pub mod selective;
 pub mod zero_copy;
 
 // 重新导出常用类型
@@ -20,7 +19,6 @@ pub use base::*;
 pub use high_performance::*;
 pub use batch::*;
 pub use hardware::*;
-pub use selective::*;
 pub use zero_copy::*;
 
 /// 隐私级别枚举

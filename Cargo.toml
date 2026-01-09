@@ -23,7 +23,7 @@ bs58 = "0.5.1"
 chacha20 = "0.9"
 aes-gcm = "0.10"
 ring = "0.17"
-zeroize = "1.7"
+zeroize = { version = "1", features = ["derive"] }
 chacha20poly1305 = "0.10"
 aes = "0.8"
 cipher = "0.4"
@@ -49,6 +49,14 @@ sysinfo = { version = "0.37.2", default-features = true }
 battery = "0.7"
 libloading = "0.9"
 
+# Solana 相关依赖
+solana-sdk = "1.18"
+solana-client = "1.18"
+solana-account-decoder = "1.18"
+chrono = "0.4"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+log = "0.4"
+
 # WASM和零知识证明依赖
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3.83", optional = true }
@@ -61,7 +69,7 @@ default = []
 ffi = []
 blockchain = ["async-trait", "ethers", "ethers-core"]
 wasm = ["wasm-bindgen", "js-sys", "web-sys", "serde-wasm-bindgen"]
-workers = ["wasm"]
+workers = ["wasm", "tokio", "async-trait"]
 zk_proof = ["nori"]
 
 

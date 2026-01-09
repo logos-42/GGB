@@ -5,6 +5,7 @@
 use wasm_bindgen::prelude::*;
 use rand::RngCore;
 use sha3::Digest;
+use js_sys::Date;
 
 /// 初始化WASM模块
 #[wasm_bindgen(start)]
@@ -15,7 +16,7 @@ pub fn init() {
 
 /// williw WASM 应用实例
 #[wasm_bindgen]
-pub struct WilliwWasmApp {
+pub struct WorkersApp {
     // 内部状态
     initialized: bool,
 }
@@ -77,23 +78,35 @@ impl DeviceCapabilities {
 }
 
 #[wasm_bindgen]
-impl WilliwWasmApp {
-    /// 创建新的williw WASM应用
+impl WorkersApp {
+    /// 创建新的workers WASM应用
     #[wasm_bindgen(constructor)]
-    pub fn new() -> WilliwWasmApp {
-        web_sys::console::log_1(&"创建新的williw WASM应用".into());
-        WilliwWasmApp {
+    pub fn new(config: JsValue) -> WorkersApp {
+        web_sys::console::log_1(&"创建新的workers WASM应用".into());
+        WorkersApp {
             initialized: false,
         }
     }
     
     /// 初始化应用
     #[wasm_bindgen]
-    pub fn initialize(&mut self) -> bool {
-        web_sys::console::log_1(&"初始化williw WASM应用...".into());
+    pub fn initialize(&mut self) -> Result<bool, JsValue> {
+        web_sys::console::log_1(&"初始化workers WASM应用...".into());
         self.initialized = true;
-        web_sys::console::log_1(&"williw WASM应用初始化完成".into());
-        true
+        web_sys::console::log_1(&"workers WASM应用初始化完成".into());
+        Ok(true)
+    }
+
+    /// 处理请求
+    #[wasm_bindgen]
+    pub async fn handle_request(&self, request: JsValue) -> Result<JsValue, JsValue> {
+        // 简化版本，返回一个基本响应
+        let response = serde_wasm_bindgen::to_value(&serde_json::json!({
+            "status": 200,
+            "body": "Hello from WorkersApp",
+            "headers": {"Content-Type": "application/json"}
+        }))?;
+        Ok(response)
     }
     
     /// 检查是否已初始化
@@ -157,8 +170,29 @@ impl WilliwWasmApp {
     /// 销毁应用
     #[wasm_bindgen]
     pub fn destroy(&mut self) {
-        web_sys::console::log_1(&"销毁williw WASM应用".into());
+        web_sys::console::log_1(&"销毁workers WASM应用".into());
         self.initialized = false;
+    }
+
+    /// 清理过期节点
+    #[wasm_bindgen]
+    pub async fn cleanup_expired_nodes(&self) -> Result<(), JsValue> {
+        web_sys::console::log_1(&"清理过期节点...".into());
+        Ok(())
+    }
+
+    /// 获取统计信息
+    #[wasm_bindgen]
+    pub async fn get_stats(&self) -> Result<JsValue, JsValue> {
+        let now = Date::new_0();
+        let timestamp = now.toISOString();
+        let stats = serde_json::json!({
+            "total_nodes": 0,
+            "active_nodes": 0,
+            "total_tasks": 0,
+            "timestamp": timestamp.as_string().unwrap_or_default()
+        });
+        serde_wasm_bindgen::to_value(&stats)
     }
 }
 

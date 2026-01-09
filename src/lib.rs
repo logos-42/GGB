@@ -6,10 +6,16 @@
 #![allow(non_snake_case)]
 
 // 核心模块
-pub mod privacy;
 pub mod device;
 pub mod crypto;
 pub mod consensus;
+
+// Solana 区块链集成
+pub mod solana;
+
+// Cloudflare Workers 集成
+#[cfg(feature = "workers")]
+pub mod workers;
 
 // 配置模块
 pub mod config;
@@ -25,7 +31,6 @@ pub mod types;
 pub mod zk;
 
 // 重新导出常用类型
-pub use privacy::{PrivacyConfig, PrivacyLevel, CryptoEngine, CryptoKey};
 pub use device::{DeviceConfig, DeviceCapabilities, DeviceManager};
 pub use consensus::{ConsensusConfig, ConsensusEngine};
 
@@ -34,16 +39,16 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + S
 
 /// williw 应用
 pub struct WilliwApp {
-    config: PrivacyConfig,
+    config: config::AppConfig,
     device_manager: DeviceManager,
     network: Option<comms::NetworkHandle>,
 }
 
 impl WilliwApp {
     /// 创建新的 williw 应用
-    pub fn new(config: PrivacyConfig) -> Result<Self> {
+    pub fn new(config: config::AppConfig) -> Result<Self> {
         let device_manager = DeviceManager::new();
-        
+
         Ok(Self {
             config,
             device_manager,
@@ -85,12 +90,7 @@ impl WilliwApp {
 /// 应用状态
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AppStatus {
-    pub config: PrivacyConfig,
+    pub config: config::AppConfig,
     pub device_capabilities: DeviceCapabilities,
     pub network_connected: bool,
-}
-
-/// 创建默认配置
-pub fn create_default_config() -> PrivacyConfig {
-    PrivacyConfig::default()
 }

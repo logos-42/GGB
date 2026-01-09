@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 
-use super::{EncryptionAlgorithm, HighPerformanceCrypto};
+use crate::crypto::{EncryptionAlgorithm, HighPerformanceCrypto};
 
 /// 硬件加速加密检测和支持
 pub struct HardwareAcceleratedCrypto {

@@ -1,5 +1,5 @@
 //! 统一配置系统
-//! 
+//!
 //! 提供简洁、统一的配置管理，支持多种配置源和动态更新。
 
 use anyhow::{anyhow, Result};
@@ -9,15 +9,12 @@ use std::path::Path;
 use std::sync::Arc;
 use parking_lot::RwLock;
 
-use crate::privacy::PrivacyConfig;
 use crate::network::NetworkConfig;
 use crate::device::DeviceConfig;
 
 /// 应用配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
-    /// 隐私配置
-    pub privacy: PrivacyConfig,
     /// 网络配置
     pub network: NetworkConfig,
     /// 设备配置
@@ -76,7 +73,6 @@ pub struct LoggingConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            privacy: PrivacyConfig::default(),
             network: NetworkConfig::default(),
             device: DeviceConfig::default(),
             training: TrainingConfig::default(),
@@ -221,13 +217,7 @@ impl ConfigBuilder {
             config: AppConfig::default(),
         }
     }
-    
-    /// 设置隐私配置
-    pub fn privacy(mut self, privacy: PrivacyConfig) -> Self {
-        self.config.privacy = privacy;
-        self
-    }
-    
+
     /// 设置网络配置
     pub fn network(mut self, network: NetworkConfig) -> Self {
         self.config.network = network;

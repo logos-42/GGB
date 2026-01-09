@@ -15,8 +15,9 @@ use cbc::{Decryptor, Encryptor};
 use block_padding::Pkcs7;
 use blake3::Hasher;
 use rand::RngCore;
+use aes::cipher::KeyIvInit;
 
-use super::{EncryptionAlgorithm, PrivacyLevel, PerformanceMetrics, PrivacyPerformanceMetrics};
+use crate::crypto::{EncryptionAlgorithm, PrivacyLevel, PerformanceMetrics, PrivacyPerformanceMetrics};
 
 /// 高性能加密引擎配置
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -88,8 +89,9 @@ impl HighPerformanceCrypto {
             EncryptionAlgorithm::Blake3 => 32,           // 256位
         };
 
+
         let mut key = vec![0u8; key_size];
-        rand::thread_rng().fill_bytes(&mut key);
+        rand::rng().fill_bytes(&mut key);
         Ok(key)
     }
     
@@ -194,25 +196,24 @@ impl HighPerformanceCrypto {
     
     pub fn encrypt_aes256(&self, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let iv = [0u8; 16]; // 简化，实际应使用随机IV
-        let cipher = Encryptor::<Aes256, Pkcs7>::new(key, &iv)
+        let cipher = cbc::Encryptor::<Aes256>::new_from_slices(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
-        
-        // 使用 encrypt_padded 方法处理填充
-        let mut buffer = vec![0; data.len() + 16]; // 预留填充空间
-        let len = cipher.encrypt_padded(data, &mut buffer)
+
+        let mut buffer = vec![0u8; data.len() + 16]; // 预留填充空间
+        buffer[..data.len()].copy_from_slice(data);
+        let len = cipher.encrypt_padded_mut::<Pkcs7>(&mut buffer, data.len())
             .map_err(|e| anyhow!("AES256加密失败: {}", e))?;
         buffer.truncate(len);
         Ok(buffer)
     }
-    
+
     pub fn decrypt_aes256(&self, encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let iv = [0u8; 16];
-        let cipher = Decryptor::<Aes256, Pkcs7>::new(key, &iv)
+        let cipher = Decryptor::<Aes256>::new_from_slices(key, &iv)
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
-        
-        // 使用 decrypt_padded 方法处理填充
-        let mut buffer = vec![0; encrypted.len()];
-        let len = cipher.decrypt_padded(encrypted, &mut buffer)
+
+        let mut buffer = encrypted.to_vec();
+        let len = cipher.decrypt_padded_mut::<Pkcs7>(&mut buffer, buffer.len())
             .map_err(|e| anyhow!("AES256解密失败: {}", e))?;
         buffer.truncate(len);
         Ok(buffer)

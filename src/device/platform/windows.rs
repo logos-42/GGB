@@ -1,4 +1,4 @@
-use crate::device::types::{GpuComputeApi, NetworkType};
+use crate::device::types::{GpuComputeApi, NetworkType, GpuUsageInfo};
 use std::process::Command;
 
 /// 检查库是否存在
@@ -236,3 +236,117 @@ pub fn detect_battery() -> (Option<f32>, bool) {
     
     (None, false)
 }
+
+/// 检测 GPU 使用率
+pub fn detect_gpu_usage() -> Vec<GpuUsageInfo> {
+    let mut gpu_usages = Vec::new();
+
+    // 方法1: 尝试使用 nvidia-smi（NVIDIA GPU）
+    if let Ok(output) = Command::new("nvidia-smi")
+        .args(&["--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu",
+                "--format=csv,noheader,nounits"])
+        .output()
+    {
+        if let Ok(output_str) = String::from_utf8(output.stdout) {
+            for line in output_str.lines() {
+                let parts: Vec<&str> = line.split(',').collect();
+                if parts.len() >= 5 {
+                    let gpu_name = parts.get(0).unwrap_or(&"").trim().to_string();
+                    let usage = parts.get(1).and_then(|s| s.trim().parse::<f32>().ok()).unwrap_or(0.0);
+                    let mem_used = parts.get(2).and_then(|s| s.trim().parse::<u64>().ok());
+                    let mem_total = parts.get(3).and_then(|s| s.trim().parse::<u64>().ok());
+                    let temperature = parts.get(4).and_then(|s| s.trim().parse::<f32>().ok());
+
+                    gpu_usages.push(GpuUsageInfo {
+                        gpu_name: format!("NVIDIA {}", gpu_name),
+                        usage_percent: usage,
+                        memory_used_mb: mem_used.map(|v| v / 1024), // 转换为MB
+                        memory_total_mb: mem_total.map(|v| v / 1024),
+                        temperature,
+                    });
+                }
+            }
+        }
+    }
+
+    // 方法2: 尝试使用 wmic 查询 GPU 性能（通用方法）
+    if gpu_usages.is_empty() {
+        if let Ok(output) = Command::new("wmic")
+            .args(&["path", "win32_VideoController", "get", "name,AdapterRAM,CurrentRefreshRate", "/format:list"])
+            .output()
+        {
+            if let Ok(output_str) = String::from_utf8(output.stdout) {
+                // 解析 GPU 名称和内存
+                let mut gpu_name = String::from("Unknown GPU");
+                let mut memory_mb: Option<u64> = None;
+
+                for line in output_str.lines() {
+                    if line.starts_with("Name=") {
+                        if let Some(value) = line.split('=').nth(1) {
+                            gpu_name = value.trim().to_string();
+                        }
+                    } else if line.starts_with("AdapterRAM=") {
+                        if let Some(value) = line.split('=').nth(1) {
+                            if let Ok(bytes) = value.trim().parse::<u64>() {
+                                memory_mb = Some(bytes / (1024 * 1024));
+                            }
+                        }
+                    }
+                }
+
+                // 对于非NVIDIA GPU，使用性能计数器获取使用率
+                if let Ok(usage) = get_gpu_usage_from_performance_counter() {
+                    gpu_usages.push(GpuUsageInfo {
+                        gpu_name,
+                        usage_percent: usage,
+                        memory_used_mb: None,
+                        memory_total_mb: memory_mb,
+                        temperature: None,
+                    });
+                }
+            }
+        }
+    }
+
+    gpu_usages
+}
+
+/// 通过性能计数器获取 GPU 使用率（Windows 性能计数器）
+fn get_gpu_usage_from_performance_counter() -> Result<f32, ()> {
+    // 使用 PowerShell 查询 GPU 引擎使用率
+    let command = r#"
+        $gpu = Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction SilentlyContinue
+        if ($gpu) {
+            $total = 0
+            $count = 0
+            foreach ($sample in $gpu.CounterSamples) {
+                if ($sample.InstanceName -like '*3D*') {
+                    $total += [float]$sample.CookedValue
+                    $count++
+                }
+            }
+            if ($count -gt 0) {
+                [math]::Round($total / $count, 2)
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        }
+    "#;
+
+    if let Ok(output) = Command::new("powershell")
+        .args(&["-Command", command])
+        .output()
+    {
+        if let Ok(output_str) = String::from_utf8(output.stdout) {
+            let trimmed = output_str.trim();
+            if let Ok(usage) = trimmed.parse::<f32>() {
+                return Ok(usage.clamp(0.0, 100.0));
+            }
+        }
+    }
+
+    Err(())
+}
+

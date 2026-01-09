@@ -1,5 +1,5 @@
 use super::capabilities::DeviceCapabilities;
-use super::types::{DeviceType, GpuComputeApi, NetworkType};
+use super::types::{DeviceType, GpuComputeApi, NetworkType, GpuUsageInfo};
 
 /// 设备能力检测器（用于未来平台特定实现）
 pub struct DeviceDetector;
@@ -226,7 +226,7 @@ impl DeviceDetector {
                 return (Some(level_f.clamp(0.0, 1.0)), charging);
             }
         }
-        
+
         #[cfg(target_os = "windows")]
         {
             super::platform::windows::detect_battery()
@@ -244,5 +244,26 @@ impl DeviceDetector {
             (None, false)
         }
     }
+
+    /// 检测 GPU 使用率（平台特定）
+    pub fn detect_gpu_usage() -> Vec<GpuUsageInfo> {
+        #[cfg(target_os = "windows")]
+        {
+            super::platform::windows::detect_gpu_usage()
+        }
+        #[cfg(target_os = "linux")]
+        {
+            super::platform::linux::detect_gpu_usage()
+        }
+        #[cfg(target_os = "macos")]
+        {
+            super::platform::macos::detect_gpu_usage()
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        {
+            Vec::new()
+        }
+    }
 }
+
 

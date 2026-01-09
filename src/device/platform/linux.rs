@@ -303,4 +303,98 @@ pub fn detect_battery() -> (Option<f32>, bool) {
     
     (None, false)
 }
-                            
+
+/// 检测 GPU 使用率
+pub fn detect_gpu_usage() -> Vec<crate::device::types::GpuUsageInfo> {
+    use crate::device::types::GpuUsageInfo;
+    let mut gpu_usages = Vec::new();
+
+    // 方法1: 尝试使用 nvidia-smi（NVIDIA GPU）
+    if let Ok(output) = Command::new("nvidia-smi")
+        .args(&["--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu",
+                "--format=csv,noheader,nounits"])
+        .output()
+    {
+        if let Ok(output_str) = String::from_utf8(output.stdout) {
+            for line in output_str.lines() {
+                let parts: Vec<&str> = line.split(',').collect();
+                if parts.len() >= 5 {
+                    let gpu_name = parts.get(0).unwrap_or(&"").trim().to_string();
+                    let usage = parts.get(1).and_then(|s| s.trim().parse::<f32>().ok()).unwrap_or(0.0);
+                    let mem_used = parts.get(2).and_then(|s| s.trim().parse::<u64>().ok());
+                    let mem_total = parts.get(3).and_then(|s| s.trim().parse::<u64>().ok());
+                    let temperature = parts.get(4).and_then(|s| s.trim().parse::<f32>().ok());
+
+                    gpu_usages.push(GpuUsageInfo {
+                        gpu_name: format!("NVIDIA {}", gpu_name),
+                        usage_percent: usage,
+                        memory_used_mb: mem_used.map(|v| v / 1024), // 转换为MB
+                        memory_total_mb: mem_total.map(|v| v / 1024),
+                        temperature,
+                    });
+                }
+            }
+        }
+    }
+
+    // 方法2: 尝试使用 AMDGPU（AMD GPU）
+    if gpu_usages.is_empty() {
+        if let Ok(output) = Command::new("ls")
+            .args(&["/sys/class/drm/"])
+            .output()
+        {
+            if let Ok(output_str) = String::from_utf8(output.stdout) {
+                for line in output_str.lines() {
+                    let card_name = line.trim();
+                    if card_name.starts_with("card") && card_name != "card" {
+                        // 读取 GPU 使用率
+                        let gpu_busy_path = format!("/sys/class/drm/{}/device/gpu_busy_percent", card_name);
+                        if let Ok(busy_str) = std::fs::read_to_string(&gpu_busy_path) {
+                            if let Ok(usage) = busy_str.trim().parse::<f32>() {
+                                // 读取 GPU 名称
+                                let card_path = format!("/sys/class/drm/{}/device", card_name);
+                                if let Ok(gpu_info) = std::fs::read_to_string(format!("{}/uevent", card_path)) {
+                                    let gpu_name = gpu_info
+                                        .lines()
+                                        .find(|l| l.starts_with("PRODUCT="))
+                                        .map(|l| l.trim_start_matches("PRODUCT=").to_string())
+                                        .unwrap_or_else(|| format!("AMD GPU ({})", card_name));
+
+                                    gpu_usages.push(GpuUsageInfo {
+                                        gpu_name,
+                                        usage_percent: usage,
+                                        memory_used_mb: None,
+                                        memory_total_mb: None,
+                                        temperature: None,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 方法3: 尝试使用 Intel GPU (intel_gpu_top)
+    if gpu_usages.is_empty() {
+        if let Ok(output) = Command::new("intel_gpu_top")
+            .args(&["-J"])
+            .output()
+        {
+            if let Ok(_output_str) = String::from_utf8(output.stdout) {
+                // 解析 Intel GPU 使用率（这里简化处理）
+                gpu_usages.push(GpuUsageInfo {
+                    gpu_name: "Intel GPU".to_string(),
+                    usage_percent: 0.0, // 需要解析 JSON
+                    memory_used_mb: None,
+                    memory_total_mb: None,
+                    temperature: None,
+                });
+            }
+        }
+    }
+
+    gpu_usages
+}
+ 

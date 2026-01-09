@@ -1,43 +1,21 @@
 name = "williw"
-type = "rust"
-account_id = "yuanjieliu"
+main = "./index.js"
+compatibility_date = "2024-01-01"
+account_id = "a13e8fd1b7246c7105fbbab04f5d9b8d"
 workers_dev = true
-route = ""
-zone_id = ""
 
-[build]
-command = "cargo build --target wasm32-unknown-unknown --release --features workers"
-upload = { format = "wasm" }
-
-[build.upload]
-dir = "wasm/pkg"
-main = "./williw_wasm.js"
+[observability]
+enabled = true
 
 [vars]
 NODE_ENV = "production"
 LOG_LEVEL = "info"
-MAX_NODES = "1000"
-ZK_PROOF_ENABLED = "true"
 
-[kv_namespaces]
-{ binding = "NODES_STORE", id = "nodes-store-id" }
-{ binding = "TASKS_STORE", id = "tasks-store-id" }
-{ binding = "PROOFS_STORE", id = "proofs-store-id" }
-
-[durable_objects]
-{ name = "NodeRegistry", class_name = "NodeRegistry" }
-{ name = "TaskScheduler", class_name = "TaskScheduler" }
-{ name = "ProofVerifier", class_name = "ProofVerifier" }
-
-[[rules]]
-type = "Worker"
-pattern = "api/*"
-script = "williw-edge-server"
-
-[[rules]]
-type = "Worker"
-pattern = "ws/*"
-script = "williw-edge-server"
+# D1 数据库绑定
+[[d1_databases]]
+binding = "DB"
+database_name = "williw_db"
+database_id = "79316f7a-bd7f-418b-bb4d-54eee2ec6c6c"
 
 [triggers]
-crons = ["*/5 * * * *"]  # 每5分钟执行一次维护任务
+crons = ["*/5 * * * *"]
