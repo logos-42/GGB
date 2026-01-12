@@ -52,18 +52,19 @@ export const TrainingSwitch: React.FC = () => {
           backdropFilter: 'blur(10px)',
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: 1,
-          minWidth: 150,
+          width: 56,
+          height: 56,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {isRunning ? '已启动' : '已关闭'}
-          </Typography>
+        <CardContent sx={{ p: 1 }}>
           <Switch
             checked={isRunning}
             onChange={handleToggle}
             disabled={loading}
-            size="small"
+            size="medium"
             sx={{
               '& .MuiSwitch-switchBase.Mui-checked': {
                 color: '#4caf50',

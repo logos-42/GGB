@@ -106,6 +106,15 @@ pub struct DeviceInfo {
     pub is_charging: Option<bool>,
 }
 
+/// API Key entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiKeyEntry {
+    pub id: String,
+    pub name: String,
+    pub key: String,
+    pub created_at: String,
+}
+
 /// Global application state
 pub struct AppState {
     pub settings: Arc<Mutex<AppSettings>>,
@@ -114,6 +123,7 @@ pub struct AppState {
     pub node: Arc<Mutex<Option<()>>>,  // Placeholder until Node is implemented
     pub available_models: Arc<Mutex<Vec<ModelConfig>>>,
     pub device_info: Arc<Mutex<Option<DeviceInfo>>>,
+    pub api_keys: Arc<Mutex<Vec<ApiKeyEntry>>>,
 }
 
 impl AppState {
@@ -187,6 +197,7 @@ impl AppState {
             node: Arc::new(Mutex::new(None)),
             available_models: Arc::new(Mutex::new(models)),
             device_info: Arc::new(Mutex::new(Some(device_info))),
+            api_keys: Arc::new(Mutex::new(vec![])),
         }
     }
 

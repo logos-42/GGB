@@ -13,49 +13,97 @@ import {
   alpha,
 } from '@mui/material';
 import { invoke } from '@tauri-apps/api/core';
-import { AppSettings } from '../types';
 
 interface SettingsPanelProps {
   onClose: () => void;
 }
 
+interface ApiKey {
+  id: string;
+  name: string;
+  key: string;
+  created_at: string;
+}
+
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const theme = useTheme();
-  const [settings, setSettings] = useState<AppSettings>({
-    privacy_level: 'medium',
-    bandwidth_budget: 10,
-    network_config: {
-      max_peers: 10,
-      bootstrap_nodes: [],
-      port: 9000,
-    },
-    checkpoint_settings: {
-      enabled: true,
-      interval_minutes: 5,
-      max_checkpoints: 10,
-    },
-  });
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [selectedKey, setSelectedKey] = useState<ApiKey | null>(null);
+  const [showApiDialog, setShowApiDialog] = useState(false);
+  const [newApiName, setNewApiName] = useState('');
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   useEffect(() => {
-    loadSettings();
+    loadApiKeys();
   }, []);
 
-  const loadSettings = async () => {
+  const loadApiKeys = async () => {
     try {
-      const loadedSettings = await invoke<AppSettings>('get_settings');
-      setSettings(loadedSettings);
+      const keys = await invoke<ApiKey[]>('get_api_keys');
+      setApiKeys(keys);
     } catch (error) {
-      console.error('Error loading settings:', error);
+      console.error('Error loading API keys:', error);
     }
   };
 
-  const handleSave = async () => {
-    try {
-      await invoke('update_settings', { newSettings: settings });
-      onClose();
-    } catch (error) {
-      console.error('Error saving settings:', error);
+  const handleCreateApi = async () => {
+    if (!newApiName.trim()) {
+      alert('请输入 API 名称');
+      return;
     }
+    
+    try {
+      const newKey = await invoke<ApiKey>('create_api_key', { name: newApiName });
+      setApiKeys([...apiKeys, newKey]);
+      setNewApiName('');
+      setShowCreateDialog(false);
+      setSelectedKey(newKey);
+      setShowApiDialog(true);
+    } catch (error) {
+      console.error('Error creating API key:', error);
+    }
+  };
+
+  const handleDeleteApi = async (id: string) => {
+    try {
+      await invoke('delete_api_key', { id });
+      setApiKeys(apiKeys.filter(k => k.id !== id));
+      if (selectedKey?.id === id) {
+        setSelectedKey(null);
+      }
+    } catch (error) {
+      console.error('Error deleting API key:', error);
+    }
+  };
+
+  const handleUpdateApiName = async (id: string, newName: string) => {
+    try {
+      await invoke('update_api_key_name', { id, newName });
+      setApiKeys(apiKeys.map(k => k.id === id ? { ...k, name: newName } : k));
+    } catch (error) {
+      console.error('Error updating API key name:', error);
+    }
+  };
+
+  const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+
+  const startEditing = (key: ApiKey) => {
+    setEditingKeyId(key.id);
+    setEditingName(key.name);
+  };
+
+  const saveEditing = async (id: string) => {
+    if (editingName.trim()) {
+      await handleUpdateApiName(id, editingName);
+    }
+    setEditingKeyId(null);
+    setEditingName('');
+  };
+
+  const cancelEditing = () => {
+    setEditingKeyId(null);
+    setEditingName('');
   };
 
   return (
@@ -78,155 +126,204 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
       <DialogContent>
         <Grid container spacing={3}>
-          {/* 隐私设置 */}
+          {/* API 管理 */}
           <Grid item xs={12}>
-            <Typography variant="h6" gutterBottom>
-              隐私保护
-            </Typography>
-            <TextField
-              select
-              fullWidth
-              label="隐私级别"
-              value={settings.privacy_level}
-              onChange={(e) => setSettings({ ...settings, privacy_level: e.target.value })}
-              SelectProps={{
-                native: true,
-              }}
-              helperText="选择隐私保护级别：高（本地训练）、中（差分隐私）、低（开放共享）"
-            >
-              <option value="high">高 - 仅本地训练</option>
-              <option value="medium">中 - 差分隐私</option>
-              <option value="low">低 - 开放共享</option>
-            </TextField>
-          </Grid>
-
-          {/* 带宽设置 */}
-          <Grid item xs={12} sm={6}>
-            <Typography variant="h6" gutterBottom>
-              带宽预算
-            </Typography>
-            <TextField
-              fullWidth
-              type="number"
-              label="最大带宽 (MB/s)"
-              value={settings.bandwidth_budget}
-              onChange={(e) => setSettings({ 
-                ...settings, 
-                bandwidth_budget: parseInt(e.target.value) || 0 
-              })}
-              helperText="限制训练节点的网络带宽使用"
-            />
-          </Grid>
-
-          {/* 网络配置 */}
-          <Grid item xs={12}>
-            <Typography variant="h6" gutterBottom>
-              网络配置
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  type="number"
-                  label="最大连接节点数"
-                  value={settings.network_config.max_peers}
-                  onChange={(e) => setSettings({
-                    ...settings,
-                    network_config: {
-                      ...settings.network_config,
-                      max_peers: parseInt(e.target.value) || 0
-                    }
-                  })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  type="number"
-                  label="监听端口"
-                  value={settings.network_config.port}
-                  onChange={(e) => setSettings({
-                    ...settings,
-                    network_config: {
-                      ...settings.network_config,
-                      port: parseInt(e.target.value) || 0
-                    }
-                  })}
-                />
-              </Grid>
-            </Grid>
-          </Grid>
-
-          {/* Checkpoint 设置 */}
-          <Grid item xs={12}>
-            <Typography variant="h6" gutterBottom>
-              Checkpoint 设置
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  select
-                  label="启用 Checkpoint"
-                  value={settings.checkpoint_settings.enabled}
-                  onChange={(e) => setSettings({
-                    ...settings,
-                    checkpoint_settings: {
-                      ...settings.checkpoint_settings,
-                      enabled: e.target.value === 'true'
-                    }
-                  })}
-                  SelectProps={{
-                    native: true,
-                  }}
-                >
-                  <option value="true">启用</option>
-                  <option value="false">禁用</option>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  type="number"
-                  label="保存间隔 (分钟)"
-                  value={settings.checkpoint_settings.interval_minutes}
-                  onChange={(e) => setSettings({
-                    ...settings,
-                    checkpoint_settings: {
-                      ...settings.checkpoint_settings,
-                      interval_minutes: parseInt(e.target.value) || 0
-                    }
-                  })}
-                  disabled={!settings.checkpoint_settings.enabled}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  type="number"
-                  label="最大 Checkpoint 数量"
-                  value={settings.checkpoint_settings.max_checkpoints}
-                  onChange={(e) => setSettings({
-                    ...settings,
-                    checkpoint_settings: {
-                      ...settings.checkpoint_settings,
-                      max_checkpoints: parseInt(e.target.value) || 0
-                    }
-                  })}
-                  disabled={!settings.checkpoint_settings.enabled}
-                />
-              </Grid>
-            </Grid>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                API 管理
+              </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => setShowCreateDialog(true)}
+              >
+                创建新 API
+              </Button>
+            </Box>
+            
+            {/* API 列表 */}
+            {apiKeys.length > 0 ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {apiKeys.map((key) => (
+                  <Box
+                    key={key.id}
+                    sx={{
+                      p: 2,
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      borderRadius: 1,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Box sx={{ flex: 1 }}>
+                      {editingKeyId === key.id ? (
+                        <TextField
+                          size="small"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          sx={{ mb: 1 }}
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+                          {key.name}
+                        </Typography>
+                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        {key.key.substring(0, 16)}...{key.key.substring(key.key.length - 4)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                        创建时间: {new Date(key.created_at).toLocaleDateString('zh-CN')}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      {editingKeyId === key.id ? (
+                        <>
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => saveEditing(key.id)}
+                          >
+                            保存
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={cancelEditing}
+                          >
+                            取消
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => startEditing(key)}
+                          >
+                            重命名
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => {
+                              setSelectedKey(key);
+                              setShowApiDialog(true);
+                            }}
+                          >
+                            查看
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="text"
+                            color="error"
+                            onClick={() => handleDeleteApi(key.id)}
+                          >
+                            删除
+                          </Button>
+                        </>
+                      )}
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                暂无 API 密钥，点击上方按钮创建
+              </Typography>
+            )}
           </Grid>
         </Grid>
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>取消</Button>
-        <Button onClick={handleSave} variant="contained">
-          保存
-        </Button>
+        <Button onClick={onClose}>关闭</Button>
       </DialogActions>
+
+      {/* 创建 API 对话框 */}
+      <Dialog
+        open={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: alpha(theme.palette.background.paper, 0.95),
+            backdropFilter: 'blur(20px)',
+            border: `1px solid ${theme.palette.divider}`,
+          },
+        }}
+      >
+        <DialogTitle>
+          <Typography variant="h6" component="span">创建 API 密钥</Typography>
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="API 名称"
+            placeholder="请输入 API 名称（如：生产环境、测试环境）"
+            value={newApiName}
+            onChange={(e) => setNewApiName(e.target.value)}
+            helperText="为您的 API 密钥起一个易于识别的名称"
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowCreateDialog(false)}>取消</Button>
+          <Button
+            onClick={handleCreateApi}
+            variant="contained"
+            disabled={!newApiName.trim()}
+          >
+            创建
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* API 密钥显示对话框 */}
+      <Dialog
+        open={showApiDialog}
+        onClose={() => setShowApiDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: alpha(theme.palette.background.paper, 0.95),
+            backdropFilter: 'blur(20px)',
+            border: `1px solid ${theme.palette.divider}`,
+          },
+        }}
+      >
+        <DialogTitle>
+          <Typography variant="h6" component="span">API 密钥 - {selectedKey?.name}</Typography>
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            value={selectedKey?.key || ''}
+            InputProps={{
+              readOnly: true,
+            }}
+            helperText="请妥善保管您的 API 密钥"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowApiDialog(false)}>关闭</Button>
+          <Button
+            onClick={() => {
+              if (selectedKey?.key) {
+                navigator.clipboard.writeText(selectedKey.key);
+                console.log('API key copied to clipboard');
+              }
+            }}
+            variant="contained"
+          >
+            复制
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 };

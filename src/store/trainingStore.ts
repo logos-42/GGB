@@ -14,7 +14,7 @@ interface TrainingStore {
 }
 
 export const useTrainingStore = create<TrainingStore>((set) => ({
-  isRunning: false,
+  isRunning: true,
   isSettingsOpen: false,
   trainingStatus: null,
   

@@ -19,8 +19,8 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({ onClick }) => {
     <Box
       sx={{
         position: 'absolute',
-        top: 16,
-        right: 16,
+        top: 80,
+        left: 16,
         zIndex: 10,
       }}
     >

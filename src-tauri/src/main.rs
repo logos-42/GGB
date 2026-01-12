@@ -25,6 +25,10 @@ async fn main() {
             commands::get_training_stats,
             commands::update_settings,
             commands::get_settings,
+            commands::get_api_keys,
+            commands::create_api_key,
+            commands::delete_api_key,
+            commands::update_api_key_name,
         ])
         .setup(|app| {
             // Initialize event handlers

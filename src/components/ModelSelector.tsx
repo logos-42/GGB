@@ -52,13 +52,7 @@ export const ModelSelector: React.FC = () => {
   return (
     <Box
       sx={{
-        position: 'absolute',
-        bottom: 8,
-        left: 8,
-        zIndex: 10,
-        width: 'auto',
-        minWidth: 300,
-        maxWidth: 400,
+        width: '100%',
       }}
     >
       <Card
@@ -99,29 +93,35 @@ export const ModelSelector: React.FC = () => {
 
             {currentModel && (
               <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                {/* 连接状态指示器 */}
                 <Chip
-                  label={`${currentModel.dimensions}d`}
+                  label={currentModel.dimensions === 2048 ? "未连接" : "已就绪"}
                   size="small"
                   sx={{ 
-                    background: alpha(theme.palette.primary.main, 0.1),
+                    background: currentModel.dimensions === 2048 
+                      ? alpha(theme.palette.error.main, 0.1)
+                      : alpha(theme.palette.success.main, 0.1),
+                    color: currentModel.dimensions === 2048
+                      ? theme.palette.error.main
+                      : theme.palette.success.main,
                     fontSize: '0.75rem',
                     height: 20,
+                    fontWeight: 500,
                   }}
                 />
+                {/* 模型类型标签 */}
                 <Chip
-                  label={`lr: ${currentModel.learning_rate}`}
+                  label={currentModel.name.includes('BERT') ? 'NLP' : 
+                         currentModel.name.includes('GPT') ? '生成' :
+                         currentModel.name.includes('LLaMA') ? '对话' :
+                         currentModel.name.includes('ResNet') ? '视觉' :
+                         currentModel.name.includes('Stable') ? '图像生成' :
+                         currentModel.name.includes('Whisper') ? '语音' :
+                         currentModel.name.includes('T5') ? '文本转换' : 'AI'}
                   size="small"
                   sx={{ 
-                    background: alpha(theme.palette.primary.main, 0.1),
-                    fontSize: '0.75rem',
-                    height: 20,
-                  }}
-                />
-                <Chip
-                  label={`bs: ${currentModel.batch_size}`}
-                  size="small"
-                  sx={{ 
-                    background: alpha(theme.palette.primary.main, 0.1),
+                    background: alpha(theme.palette.info.main, 0.1),
+                    color: theme.palette.info.main,
                     fontSize: '0.75rem',
                     height: 20,
                   }}
