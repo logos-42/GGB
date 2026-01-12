@@ -1,6 +1,6 @@
 [package]
 name = "williw"
-version = "0.1.1"
+version = "0.1.0"
 edition = "2021"
 
 [dependencies]
@@ -23,7 +23,7 @@ bs58 = "0.5.1"
 chacha20 = "0.9"
 aes-gcm = "0.10"
 ring = "0.17"
-zeroize = { version = "1", features = ["derive"] }
+zeroize = { version = "1.3", features = ["derive"] }
 chacha20poly1305 = "0.10"
 aes = "0.8"
 cipher = "0.4"
@@ -49,10 +49,10 @@ sysinfo = { version = "0.37.2", default-features = true }
 battery = "0.7"
 libloading = "0.9"
 
-# Solana 相关依赖
-solana-sdk = "1.18"
-solana-client = "1.18"
-solana-account-decoder = "1.18"
+# Solana 相关依赖（可选，仅用于区块链功能）
+solana-sdk = { version = "1.18", optional = true }
+solana-client = { version = "1.18", optional = true }
+solana-account-decoder = { version = "1.18", optional = true }
 chrono = "0.4"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 log = "0.4"
@@ -67,9 +67,9 @@ serde-wasm-bindgen = { version = "0.6.5", optional = true }
 [features]
 default = []
 ffi = []
-blockchain = ["async-trait", "ethers", "ethers-core"]
+blockchain = ["async-trait", "ethers", "ethers-core", "solana-sdk", "solana-client", "solana-account-decoder"]
 wasm = ["wasm-bindgen", "js-sys", "web-sys", "serde-wasm-bindgen"]
-workers = ["wasm", "tokio", "async-trait"]
+workers = ["wasm", "async-trait"]
 zk_proof = ["nori"]
 
 

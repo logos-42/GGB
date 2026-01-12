@@ -28,6 +28,10 @@ impl Topic {
     pub fn as_bytes(&self) -> &[u8] {
         self.name.as_bytes()
     }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 impl std::fmt::Display for Topic {
@@ -105,7 +109,7 @@ impl CommsHandle {
         let secret_key = iroh::SecretKey::generate(&mut rand::rng());
         
         let endpoint = Endpoint::builder()
-            .secret_key(secret_key)
+            .secret_key(secret_key.clone())  // Clone to avoid move
             .alpns(vec![b"ggb-iroh/1".to_vec()])
             .bind()
             .await
@@ -192,7 +196,7 @@ impl CommsHandle {
         for subscription in subscriptions.iter() {
             if subscription.topics.contains(&self.topic) {
                 // 序列化消息: [topic_len:4][topic_data][message_data]
-                let topic_bytes = self.topic.name.as_bytes();
+                let topic_bytes = self.topic.name().as_bytes();
                 let mut message = Vec::with_capacity(4 + topic_bytes.len() + data.len());
                 message.extend_from_slice(&(topic_bytes.len() as u32).to_be_bytes());
                 message.extend_from_slice(topic_bytes);

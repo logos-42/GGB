@@ -16,6 +16,7 @@ use block_padding::Pkcs7;
 use blake3::Hasher;
 use rand::RngCore;
 use aes::cipher::KeyIvInit;
+use aes::cipher::{BlockEncryptMut, BlockDecryptMut};
 
 use crate::crypto::{EncryptionAlgorithm, PrivacyLevel, PerformanceMetrics, PrivacyPerformanceMetrics};
 
@@ -201,8 +202,10 @@ impl HighPerformanceCrypto {
 
         let mut buffer = vec![0u8; data.len() + 16]; // 预留填充空间
         buffer[..data.len()].copy_from_slice(data);
-        let len = cipher.encrypt_padded_mut::<Pkcs7>(&mut buffer, data.len())
+        let result = cipher.encrypt_padded_mut::<Pkcs7>(&mut buffer, data.len())
             .map_err(|e| anyhow!("AES256加密失败: {}", e))?;
+        // encrypt_padded_mut returns &mut [u8], convert to usize
+        let len = result.len();
         buffer.truncate(len);
         Ok(buffer)
     }
@@ -213,8 +216,9 @@ impl HighPerformanceCrypto {
             .map_err(|e| anyhow!("AES256初始化失败: {}", e))?;
 
         let mut buffer = encrypted.to_vec();
-        let len = cipher.decrypt_padded_mut::<Pkcs7>(&mut buffer, buffer.len())
+        let result = cipher.decrypt_padded_mut::<Pkcs7>(&mut buffer)
             .map_err(|e| anyhow!("AES256解密失败: {}", e))?;
+        let len = result.len();
         buffer.truncate(len);
         Ok(buffer)
     }

@@ -6,7 +6,7 @@ use crate::device::{DeviceCapabilities, DeviceManager};
 // use iroh::NodeAddr;  // 注释掉，因为API可能已改变
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityConfig {
     pub hide_ip: bool,
     pub use_relay: bool,
@@ -20,7 +20,7 @@ pub struct SecurityConfig {
 }
 
 /// 隐私-性能平衡配置
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrivacyPerformanceConfig {
     /// 平衡模式：performance（性能优先）、balanced（平衡）、privacy（隐私优先）、adaptive（自适应）
     pub mode: BalanceMode,
@@ -245,7 +245,7 @@ impl PrivacyPerformanceConfig {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     // pub inference: InferenceConfig,
     pub comms: CommsConfig,

@@ -18,7 +18,7 @@ pub struct SolSignature {
 }
 
 /// 加密配置（仅 Solana）
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CryptoConfig {
     pub sol_bs58_seed: Option<String>,
 }

@@ -4,6 +4,7 @@
 
 use anyhow::{anyhow, Result};
 use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -39,7 +40,7 @@ impl ComputeTracker {
     /// 创建新的算力跟踪器
     pub fn new(node_id: String) -> Self {
         Self {
-            node_id,
+            node_id: node_id.clone(),  // Clone to avoid move
             current_task_id: None,
             task_start_time: None,
             start_snapshot: None,
