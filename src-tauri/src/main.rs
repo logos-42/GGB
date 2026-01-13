@@ -5,7 +5,7 @@ mod commands;
 mod state;
 mod events;
 
-// use tauri::Manager;  // Unused import
+use tauri::Emitter;
 use state::AppState;
 
 #[tokio::main]
@@ -33,6 +33,18 @@ async fn main() {
         .setup(|app| {
             // Initialize event handlers
             events::setup_event_handlers(app.handle().clone())?;
+
+            // Start background task to refresh device info every minute
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+                loop {
+                    interval.tick().await;
+                    // Emit event to refresh device info in frontend
+                    let _ = app_handle.emit("device_info_refresh", ());
+                }
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())

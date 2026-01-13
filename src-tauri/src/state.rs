@@ -229,4 +229,10 @@ impl AppState {
             is_charging,
         }
     }
+
+    /// Refresh device info - should be called periodically
+    pub fn refresh_device_info(&self) {
+        let device_info = Self::get_device_info_internal();
+        *self.device_info.lock() = Some(device_info);
+    }
 }

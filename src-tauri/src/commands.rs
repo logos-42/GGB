@@ -100,6 +100,8 @@ pub fn get_available_models(
 pub fn get_device_info(
     state: State<'_, AppState>
 ) -> Option<DeviceInfo> {
+    // Refresh device info before returning
+    state.refresh_device_info();
     state.device_info.lock().clone()
 }
 

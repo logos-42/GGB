@@ -13,6 +13,7 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { TrainingStatus, DeviceInfo } from '../types';
 import { useTrainingStore } from '../store/trainingStore';
 
@@ -93,9 +94,21 @@ export const TrainingDashboard: React.FC = () => {
       loadConnectedPeers();
     }, 60000);
 
+    // Poll for device info every minute
+    const deviceInterval = setInterval(() => {
+      loadDeviceInfo();
+    }, 60000);
+
+    // Listen for backend device info refresh events
+    const unlisten = listen('device_info_refresh', () => {
+      loadDeviceInfo();
+    });
+
     return () => {
       clearInterval(statusInterval);
       clearInterval(peersInterval);
+      clearInterval(deviceInterval);
+      unlisten.then(fn => fn());
     };
   }, []);
 
