@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
             loop {
                 interval.tick().await;
-                if let Err(e) = stats_manager.export_json_to_file(&stats_path) {
+                if let Err(e) = stats_manager.lock().unwrap().export_json_to_file(&stats_path) {
                     eprintln!("导出统计数据失败: {:?}", e);
                 }
             }
