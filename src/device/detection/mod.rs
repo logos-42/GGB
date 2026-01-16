@@ -4,7 +4,7 @@
 
 use crate::device::platform;
 use crate::device::capabilities::DeviceCapabilities;
-use crate::device::types::{DeviceType, GpuComputeApi, NetworkType};
+use crate::device::types::{DeviceType, GpuComputeApi, NetworkType, GpuUsageInfo};
 
 /// 设备检测器
 pub struct DeviceDetector;
@@ -93,7 +93,8 @@ impl DeviceDetector {
         system.refresh_memory();
         system.refresh_cpu_usage();
         
-        let max_memory_mb = system.total_memory() / 1024;
+        // system.total_memory() 返回字节，转换为 MB（除以 1024*1024）
+        let max_memory_mb = system.total_memory() / (1024 * 1024);
         let cpu_cores = system.cpus().len() as u32;
         
         (max_memory_mb, cpu_cores)
@@ -108,5 +109,10 @@ impl DeviceDetector {
     fn detect_battery() -> (Option<f32>, Option<bool>) {
         let (level, is_charging) = platform::detect_battery();
         (level, Some(is_charging))
+    }
+
+    /// 检测 GPU 使用率（平台特定）
+    pub fn detect_gpu_usage() -> Vec<GpuUsageInfo> {
+        crate::device::platform::detect_gpu_usage()
     }
 }

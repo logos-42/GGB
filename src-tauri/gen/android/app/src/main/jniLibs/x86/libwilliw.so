@@ -1,0 +1,5 @@
+﻿# This is a demo library file for x86
+# In real build, this would be replaced by the actual compiled Rust library
+# File: libwilliw.so for x86
+# Built with: Rust + Tauri v2
+# Features: Device detection, P2P communication, Training capabilities

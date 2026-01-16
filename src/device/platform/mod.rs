@@ -7,7 +7,7 @@ pub mod linux;
 #[cfg(target_os = "macos")]
 pub mod macos;
 
-use crate::device::types::{GpuComputeApi, NetworkType};
+use crate::device::types::{GpuComputeApi, NetworkType, GpuUsageInfo};
 
 // 统一的平台检测函数
 pub fn detect_gpu_apis() -> Vec<GpuComputeApi> {
@@ -87,5 +87,25 @@ pub fn detect_battery() -> (Option<f32>, bool) {
     {
         // 其他平台的默认实现
         (None, false)
+    }
+}
+
+pub fn detect_gpu_usage() -> Vec<GpuUsageInfo> {
+    #[cfg(target_os = "windows")]
+    {
+        windows::detect_gpu_usage()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        linux::detect_gpu_usage()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::detect_gpu_usage()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        // 其他平台的默认实现
+        Vec::new()
     }
 }

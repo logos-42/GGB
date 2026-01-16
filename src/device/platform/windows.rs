@@ -25,16 +25,42 @@ pub fn detect_gpu_apis() -> Vec<GpuComputeApi> {
                 if check_library_exists("nvcuda.dll") {
                     apis.push(GpuComputeApi::CUDA);
                 }
+                // NVIDIA 也支持 Vulkan 和 OpenCL
+                if check_library_exists("vulkan-1.dll") {
+                    apis.push(GpuComputeApi::Vulkan);
+                }
+                if check_library_exists("OpenCL.dll") {
+                    apis.push(GpuComputeApi::OpenCL);
+                }
             }
             
             // 检测 AMD GPU
             if output_lower.contains("amd") || output_lower.contains("radeon") {
                 // AMD GPU 通常支持 Vulkan 和 OpenCL
+                if check_library_exists("vulkan-1.dll") {
+                    apis.push(GpuComputeApi::Vulkan);
+                }
+                if check_library_exists("OpenCL.dll") {
+                    apis.push(GpuComputeApi::OpenCL);
+                }
+                // 检查 AMD ROCm（如果安装）
+                if check_library_exists("hipblas.dll") {
+                    apis.push(GpuComputeApi::OpenCL); // ROCm 使用 OpenCL 接口
+                }
             }
             
             // 检测 Intel GPU
             if output_lower.contains("intel") {
-                // Intel GPU 通常支持 DirectX 和 Vulkan
+                // Intel GPU 支持 DirectX 和 Vulkan
+                if check_library_exists("dxgi.dll") && check_library_exists("d3d12.dll") {
+                    apis.push(GpuComputeApi::DirectX);
+                }
+                if check_library_exists("vulkan-1.dll") {
+                    apis.push(GpuComputeApi::Vulkan);
+                }
+                if check_library_exists("OpenCL.dll") {
+                    apis.push(GpuComputeApi::OpenCL);
+                }
             }
         }
     }
@@ -230,6 +256,20 @@ pub fn detect_battery() -> (Option<f32>, bool) {
                     }
                 }
                 return (Some(level), false);
+            }
+        }
+    }
+    
+    // 方法4: 检查是否为桌面设备（无电池）
+    // 检查系统类型，台式机通常没有电池
+    if let Ok(output) = Command::new("wmic")
+        .args(&["computersystem", "get", "PCSystemType", "/format:list"])
+        .output()
+    {
+        if let Ok(output_str) = String::from_utf8(output.stdout) {
+            if output_str.contains("PCSystemType=2") {
+                // Desktop
+                return (None, false);
             }
         }
     }

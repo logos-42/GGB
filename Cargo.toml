@@ -64,9 +64,16 @@ web-sys = { version = "0.3", optional = true, features = [] }
 nori = { version = "0.1", optional = true }
 serde-wasm-bindgen = { version = "0.6.5", optional = true }
 
+# Android JNI依赖
+jni = { version = "0.21", optional = true }
+android_log = { version = "0.13", optional = true }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
 [features]
 default = []
 ffi = []
+android = ["jni", "android_log"]
 blockchain = ["async-trait", "ethers", "ethers-core", "solana-sdk", "solana-client", "solana-account-decoder"]
 wasm = ["wasm-bindgen", "js-sys", "web-sys", "serde-wasm-bindgen"]
 workers = ["wasm", "async-trait"]
@@ -78,6 +85,12 @@ zk_proof = ["nori"]
 name = "williw"
 path = "src/lib.rs"
 crate-type = ["cdylib", "staticlib", "rlib"]
+
+# Android JNI库
+[[lib]]
+name = "williw_jni"
+path = "src-tauri/gen/android/app/src/main/rs/lib.rs"
+crate-type = ["cdylib"]
 
 # 修复二进制名称冲突
 [[bin]]
@@ -99,6 +112,10 @@ path = "examples/comms_distance_test.rs"
 [[bin]]
 name = "analyze_training"
 path = "tools/analyze_training.rs"
+
+[[bin]]
+name = "verify_detection"
+path = "verify_detection.rs"
 
 # WASM目标特定依赖
 [target.'cfg(target_arch = "wasm32")'.dependencies]

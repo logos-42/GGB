@@ -208,11 +208,18 @@ impl AppState {
         let cpu_cores = sys.cpus().len() as u32;
         let total_memory = sys.total_memory() as f64 / (1024.0 * 1024.0 * 1024.0);
 
-        // GPU info (simulated - in production should use system APIs)
-        let gpu_type = Some("NVIDIA GeForce RTX 3060".to_string());
-        let gpu_usage = Some(30.5);  // percentage
-        let gpu_memory_total = Some(8.0);  // GB
-        let gpu_memory_used = Some(2.3);  // GB
+        // GPU info (使用真实的系统检测)
+        let gpu_info = williw::device::DeviceDetector::detect_gpu_usage();
+        let (gpu_type, gpu_usage, gpu_memory_total, gpu_memory_used) = if let Some(gpu) = gpu_info.first() {
+            (
+                Some(gpu.gpu_name.clone()),
+                Some(gpu.usage_percent as f64),
+                gpu.memory_total_mb.map(|v| v as f64 / 1024.0), // MB to GB
+                gpu.memory_used_mb.map(|v| v as f64 / 1024.0), // MB to GB
+            )
+        } else {
+            (None, None, None, None)
+        };
 
         // Battery info (simplified - may not work on all platforms)
         let battery_level: Option<f64> = None;
