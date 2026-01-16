@@ -131,6 +131,26 @@ impl DeviceCapabilities {
             DeviceType::Unknown => "未知设备",
         }
     }
+    
+    /// 获取推荐的tick间隔（毫秒）
+    pub fn recommended_tick_interval(&self) -> u64 {
+        match self.device_type {
+            DeviceType::Phone => 1000,      // 手机：1秒
+            DeviceType::Tablet => 500,     // 平板：0.5秒
+            DeviceType::Desktop => 100,     // 桌面：0.1秒
+            DeviceType::Unknown => 1000,    // 未知：1秒
+        }
+    }
+    
+    /// 检查是否应该暂停训练（低电量保护）
+    pub fn should_pause_training(&self) -> bool {
+        if let Some(battery_level) = self.battery_level {
+            // 电量低于20%且未充电时暂停训练
+            battery_level < 0.2 && !self.is_charging.unwrap_or(true)
+        } else {
+            false
+        }
+    }
 }
 
 impl Default for DeviceCapabilities {

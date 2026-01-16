@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     // 如果指定了统计输出文件，设置定期导出
     if let Some(output_path) = get_stats_output() {
         let stats_path = std::path::PathBuf::from(&output_path);
-        let stats_manager = Arc::clone(&node.stats);
+        let stats_manager: Arc<std::sync::Mutex<crate::stats::TrainingStatsManager>> = Arc::clone(&node.stats);
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
             loop {

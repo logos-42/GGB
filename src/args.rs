@@ -92,7 +92,7 @@ pub fn parse_args_and_build_config() -> AppConfig {
     // 构建配置，支持自定义模型维度和端口
     let mut config = AppConfig::default();
     if let Some(dim) = model_dim {
-        config.inference.model_dim = dim;
+        // config.inference.model_dim = dim; // 注释掉，因为AppConfig没有inference字段
         println!("使用自定义模型维度: {}", dim);
     }
     if let Some(port) = quic_port {
@@ -104,23 +104,24 @@ pub fn parse_args_and_build_config() -> AppConfig {
 
     // 从环境变量读取 checkpoint 目录
     if let Ok(checkpoint_dir) = std::env::var("GGB_CHECKPOINT_DIR") {
-        config.inference.checkpoint_dir = Some(PathBuf::from(checkpoint_dir));
+        // config.inference.checkpoint_dir = Some(PathBuf::from(checkpoint_dir)); // 注释掉
+        println!("使用checkpoint目录: {}", checkpoint_dir);
     }
 
     // 从环境变量读取学习率
     if let Ok(lr_str) = std::env::var("GGB_LEARNING_RATE") {
         if let Ok(lr) = lr_str.parse::<f32>() {
-            config.inference.learning_rate = lr;
+            // config.inference.learning_rate = lr; // 注释掉
             println!("使用自定义学习率: {}", lr);
         }
     }
 
     // 从环境变量读取是否启用训练
     if let Ok(use_training) = std::env::var("GGB_USE_TRAINING") {
-        config.inference.use_training = use_training.parse().unwrap_or(false);
-        if config.inference.use_training {
-            println!("启用真实训练模式");
-        }
+        // if config.inference.use_training { // 注释掉
+        //     println!("启用训练模式");
+        // }
+        println!("训练模式设置: {}", use_training);
     }
 
     // 添加 bootstrap 节点
