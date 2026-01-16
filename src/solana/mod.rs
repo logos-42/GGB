@@ -15,12 +15,16 @@ pub mod client;
 pub mod types;
 pub mod compute;
 pub mod rewards;
+pub mod accounts;
+pub mod instruction;
 
 // 重新导出常用类型
 pub use client::*;
 pub use types::*;
 pub use compute::*;
 pub use rewards::*;
+pub use accounts::*;
+pub use instruction::*;
 
 /// Solana 配置
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

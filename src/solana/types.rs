@@ -35,6 +35,46 @@ pub enum NodeStatus {
     Banned,
 }
 
+/// 任务类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskType {
+    /// 训练
+    Training,
+    /// 推理
+    Inference,
+    /// 验证
+    Validation,
+    /// 数据收集
+    DataCollection,
+}
+
+/// 节点地理位置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Location {
+    pub latitude: i32,  // 纬度 * 1000000
+    pub longitude: i32, // 经度 * 1000000
+    pub country: String, // 国家代码
+    pub region: String, // 地区
+}
+
+/// 模型信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelInfo {
+    pub model_id: String,
+    pub version: String,
+    pub parameters_hash: String, // 参数哈希
+    pub size_mb: u32,
+}
+
+/// 质押信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StakeInfo {
+    pub amount: u64,        // 质押数量（lamports）
+    pub staked_at: i64,     // 质押时间
+    pub lock_until: i64,    // 锁定到期时间
+    pub is_slashed: bool,   // 是否被罚没
+}
+
 /// 算力贡献记录
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComputeContribution {
