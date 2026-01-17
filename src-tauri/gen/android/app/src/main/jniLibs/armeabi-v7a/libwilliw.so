@@ -1,5 +1,0 @@
-﻿# This is a demo library file for armeabi-v7a
-# In real build, this would be replaced by the actual compiled Rust library
-# File: libwilliw.so for armeabi-v7a
-# Built with: Rust + Tauri v2
-# Features: Device detection, P2P communication, Training capabilities
