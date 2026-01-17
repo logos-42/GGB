@@ -7,12 +7,6 @@ edition = "2021"
 tokio = { version = "1", default-features = false, features = ["rt", "time", "sync"] }
 iroh = "0.95.1"
 
-# Solana 区块链依赖
-solana-client = "1.18"
-solana-sdk = "1.18"
-anchor-client = "0.32.1"
-anchor-lang = "0.32.1"
-
 async-trait = { version = "0.1", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -29,7 +23,7 @@ bs58 = "0.5.1"
 chacha20 = "0.9"
 aes-gcm = "0.10"
 ring = "0.17"
-zeroize = { version = "1.8", features = ["derive"] }
+zeroize = { version = "1.3", features = ["derive"] }
 chacha20poly1305 = "0.10"
 aes = "0.8"
 cipher = "0.4"
@@ -55,10 +49,6 @@ sysinfo = { version = "0.37.2", default-features = true }
 battery = "0.7"
 libloading = "0.9"
 
-# Solana 相关依赖（可选，仅用于区块链功能）
-# solana-sdk = { version = "1.18", optional = true }
-# solana-client = { version = "1.18", optional = true }
-# solana-account-decoder = { version = "1.18", optional = true }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 log = "0.4"

@@ -1,0 +1,28 @@
+[package]
+name = "williw_android"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "williw"
+crate-type = ["cdylib"]
+
+[dependencies]
+# 核心依赖
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+
+# Android JNI依赖
+jni = "0.21"
+android_log = "0.1"
+lazy_static = "1.4"
+
+# 设备检测相关
+sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+panic = "abort"
