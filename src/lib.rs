@@ -17,6 +17,10 @@ pub mod solana;
 #[cfg(feature = "workers")]
 pub mod workers;
 
+// Android JNI 集成
+#[cfg(feature = "android")]
+pub mod android;
+
 // 配置模块
 pub mod config;
 
@@ -30,9 +34,16 @@ pub mod types;
 #[cfg(feature = "zk_proof")]
 pub mod zk;
 
+// 网络模块（包含FFI接口）
+pub mod network;
+
 // 重新导出常用类型
 pub use device::{DeviceConfig, DeviceCapabilities, DeviceManager};
 pub use consensus::{ConsensusConfig, ConsensusEngine};
+
+// 重新导出Android模块
+#[cfg(feature = "android")]
+pub use android::*;
 
 // 类型别名
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;

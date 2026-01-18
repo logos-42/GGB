@@ -32,14 +32,14 @@ public class MainActivity extends AppCompatActivity {
     private List<ChatMessage> messageList;
     private TextView deviceInfoTextView;
     
-    // Williw节点
+    // Williw节点实例
     private WilliwNode williwNode;
     
     // 设备信息更新
     private Handler deviceUpdateHandler;
     private Runnable deviceUpdateRunnable;
     private static final long DEVICE_UPDATE_INTERVAL = 30000; // 30秒更新一次
-
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -111,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "开始初始化Williw节点");
             williwNode = new WilliwNode();
             
-            if (williwNode.isInitialized()) {
+            if (williwNode != null && williwNode.isInitialized()) {
                 Log.d(TAG, "Williw节点初始化成功");
                 
                 // 刷新设备信息
@@ -168,30 +168,65 @@ public class MainActivity extends AppCompatActivity {
      * 更新设备信息显示
      */
     private void updateDeviceInfoDisplay() {
-        if (williwNode != null && williwNode.isInitialized()) {
-            WilliwNode.DeviceCapabilities caps = williwNode.getDeviceCapabilities();
-            if (caps != null && deviceInfoTextView != null) {
-                String info = String.format(
-                    "设备: %s %s\n" +
-                    "CPU: %d核 %s\n" +
-                    "内存: %dMB\n" +
-                    "网络: %s\n" +
-                    "GPU: %s\n" +
-                    "推荐模型: %d维\n" +
-                    "训练间隔: %ds",
-                    caps.deviceBrand,
-                    caps.deviceType,
-                    caps.cpuCores,
-                    caps.cpuArchitecture,
-                    caps.maxMemoryMb,
-                    caps.networkType,
-                    caps.hasGpu ? "支持" : "不支持",
-                    caps.recommendedModelDim,
-                    caps.recommendedTickInterval
-                );
+        Log.d(TAG, "开始更新设备信息显示");
+        
+        try {
+            if (williwNode != null) {
+                Log.d(TAG, "WilliwNode不为空，检查初始化状态: " + (williwNode != null ? "非空" : "空"));
                 
-                runOnUiThread(() -> deviceInfoTextView.setText(info));
+                if (williwNode.isInitialized()) {
+                    Log.d(TAG, "WilliwNode已初始化，获取设备能力");
+                    WilliwNode.DeviceCapabilities caps = williwNode.getDeviceCapabilities();
+                    
+                    if (caps != null && deviceInfoTextView != null) {
+                        Log.d(TAG, "设备能力获取成功，更新显示");
+                        String info = String.format(
+                            "设备: %s %s\n" +
+                            "CPU: %d核 %s\n" +
+                            "内存: %dMB\n" +
+                            "网络: %s\n" +
+                            "GPU: %s\n" +
+                            "推荐模型: %d维\n" +
+                            "训练间隔: %ds",
+                            caps.deviceBrand,
+                            caps.deviceType,
+                            caps.cpuCores,
+                            caps.cpuArchitecture,
+                            caps.maxMemoryMb,
+                            caps.networkType,
+                            caps.hasGpu ? "支持" : "不支持",
+                            caps.recommendedModelDim,
+                            caps.recommendedTickInterval
+                        );
+                        
+                        Log.d(TAG, "设备信息: " + info);
+                        runOnUiThread(() -> {
+                            deviceInfoTextView.setText(info);
+                            Log.d(TAG, "设备信息已更新到UI");
+                        });
+                    } else {
+                        Log.e(TAG, "设备能力为空或TextView为空");
+                    }
+                } else {
+                    Log.w(TAG, "WilliwNode未初始化，显示默认信息");
+                    if (deviceInfoTextView != null) {
+                        runOnUiThread(() -> {
+                            deviceInfoTextView.setText("设备检测中...");
+                            Log.d(TAG, "显示默认信息");
+                        });
+                    }
+                }
+            } else {
+                Log.e(TAG, "WilliwNode为空");
+                if (deviceInfoTextView != null) {
+                    runOnUiThread(() -> {
+                        deviceInfoTextView.setText("Williw节点未初始化");
+                        Log.d(TAG, "显示节点未初始化");
+                    });
+                }
             }
+        } catch (Exception e) {
+            Log.e(TAG, "更新设备信息显示时发生异常: " + e.getMessage());
         }
     }
     
@@ -218,43 +253,34 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void afterTextChanged(android.text.Editable s) {}
         });
-        
-        // 初始状态下禁用发送按钮
-        sendButton.setEnabled(false);
     }
     
     private void sendMessage() {
         String message = messageEditText.getText().toString().trim();
-        if (message.isEmpty()) {
-            return;
-        }
-        
-        // 添加用户消息
-        ChatMessage userMessage = new ChatMessage(message, ChatMessage.TYPE_USER);
-        messageList.add(userMessage);
-        chatAdapter.notifyItemInserted(messageList.size() - 1);
-        
-        // 清空输入框
-        messageEditText.setText("");
-        
-        // 滚动到底部
-        chatRecyclerView.smoothScrollToPosition(messageList.size() - 1);
-        
-        // 模拟AI回复
-        simulateAIResponse(message);
-    }
-    
-    private void simulateAIResponse(String userMessage) {
-        // 延迟1秒后添加AI回复，模拟思考过程
-        messageEditText.postDelayed(() -> {
-            String aiResponse = generateAIResponse(userMessage);
-            ChatMessage aiMessage = new ChatMessage(aiResponse, ChatMessage.TYPE_AI);
-            messageList.add(aiMessage);
+        if (!message.isEmpty()) {
+            // 添加用户消息
+            messageList.add(new ChatMessage(message, ChatMessage.TYPE_USER));
+            chatAdapter.notifyItemInserted(messageList.size() - 1);
+            
+            // 清空输入框
+            messageEditText.setText("");
+            
+            // 生成AI回复
+            String aiResponse = generateAIResponse(message);
+            
+            // 添加AI回复
+            messageList.add(new ChatMessage(aiResponse, ChatMessage.TYPE_AI));
             chatAdapter.notifyItemInserted(messageList.size() - 1);
             
             // 滚动到底部
             chatRecyclerView.smoothScrollToPosition(messageList.size() - 1);
-        }, 1000);
+        }
+    }
+    
+    private void addWelcomeMessage() {
+        String welcomeMessage = "欢迎使用Williw AI助手！我可以帮助您了解设备信息和去中心化训练的相关内容。";
+        messageList.add(new ChatMessage(welcomeMessage, ChatMessage.TYPE_AI));
+        chatAdapter.notifyItemInserted(0);
     }
     
     private String generateAIResponse(String userMessage) {
@@ -274,103 +300,39 @@ public class MainActivity extends AppCompatActivity {
                         "GPU支持：%s\n" +
                         "推荐模型维度：%d\n" +
                         "推荐训练间隔：%d秒",
-                        caps.deviceBrand, caps.deviceType,
-                        caps.cpuCores, caps.cpuArchitecture,
+                        caps.deviceBrand,
+                        caps.deviceType,
+                        caps.cpuCores,
+                        caps.cpuArchitecture,
                         caps.maxMemoryMb,
                         caps.networkType,
-                        caps.hasGpu ? "是" : "否",
+                        caps.hasGpu ? "支持" : "不支持",
                         caps.recommendedModelDim,
                         caps.recommendedTickInterval
                     );
                 }
             }
-            return "设备信息检测中，请稍后再试。";
-        } else if (userMessage.contains("训练") || userMessage.contains("学习")) {
-            return "去中心化训练是一种创新的机器学习方式，它允许多个设备协同训练模型，同时保护数据隐私。我们的平台支持BERT、GPT等多种模型的分布式训练。\n\n根据您的设备能力，我会为您推荐最适合的训练参数。";
-        } else if (userMessage.contains("模型") || userMessage.contains("model")) {
+            return "设备信息正在获取中，请稍后再试...";
+        } else if (userMessage.contains("状态") || userMessage.contains("status")) {
             if (williwNode != null && williwNode.isInitialized()) {
-                int recommendedDim = williwNode.getRecommendedModelDim();
-                return String.format("根据您的设备分析，推荐使用%d维模型。这个维度可以在性能和准确性之间取得最佳平衡。\n\n我们目前支持多种预训练模型，包括BERT-Base、GPT-2等。", recommendedDim);
-            }
-            return "我们目前支持多种预训练模型，包括BERT-Base、GPT-2等。您可以根据需要选择合适的模型进行训练或推理。";
-        } else if (userMessage.contains("帮助") || userMessage.contains("help")) {
-            return "我可以帮助您：\n1. 了解去中心化训练的原理\n2. 选择合适的模型\n3. 配置训练参数\n4. 监控训练进度\n5. 解决技术问题\n6. 查看设备能力信息\n\n请输入您的问题开始对话！";
-        } else if (userMessage.contains("性能") || userMessage.contains("performance")) {
-            if (williwNode != null && williwNode.isInitialized()) {
-                boolean shouldPause = williwNode.shouldPauseTraining();
-                if (shouldPause) {
-                    return "根据当前设备状态（如低电量），建议暂停训练以保护设备。请充电后再继续训练。";
-                } else {
-                    return "您的设备状态良好，可以继续进行训练。我会持续监控设备状态并自动调整训练参数。";
+                WilliwNode.DeviceCapabilities caps = williwNode.getDeviceCapabilities();
+                if (caps != null) {
+                    return String.format(
+                        "系统状态：\n" +
+                        "设备：%s %s\n" +
+                        "性能评分：%.2f\n" +
+                        "电池状态：%s\n" +
+                        "训练状态：%s",
+                        caps.deviceBrand + " " + caps.deviceType,
+                        0.85, // 临时性能评分
+                        caps.batteryLevel != null ? String.format("%.0f%%", caps.batteryLevel * 100) : "未知",
+                        caps.shouldPauseTraining() ? "暂停" : "运行中"
+                    );
                 }
             }
-            return "性能监控功能正在初始化中...";
+            return "状态信息获取中...";
         } else {
-            return "感谢您的提问！我是Williw AI助手，专注于去中心化机器学习训练。如果您有任何相关问题，我很乐意为您解答！\n\n您可以问我关于设备信息、训练配置、模型选择等问题。";
-        }
-    }
-    
-    private void addWelcomeMessage() {
-        ChatMessage welcomeMessage = new ChatMessage(
-            "欢迎使用Williw AI！\n\n我是您的去中心化训练助手，可以为您提供以下服务：\n• 训练模型选择指导\n• 参数配置建议\n• 进度监控\n• 技术问题解答\n• 设备能力分析\n• 性能优化建议\n\n请输入您的问题开始对话！", 
-            ChatMessage.TYPE_AI
-        );
-        messageList.add(welcomeMessage);
-        chatAdapter.notifyItemInserted(0);
-    }
-    
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        
-        // 停止设备信息更新
-        if (deviceUpdateHandler != null && deviceUpdateRunnable != null) {
-            deviceUpdateHandler.removeCallbacks(deviceUpdateRunnable);
-        }
-        
-        // 销毁Williw节点
-        if (williwNode != null) {
-            williwNode.destroy();
-            williwNode = null;
-        }
-        
-        Log.d(TAG, "MainActivity已销毁");
-    }
-    
-    @Override
-    protected void onResume() {
-        super.onResume();
-        
-        // 刷新设备信息
-        if (williwNode != null && williwNode.isInitialized()) {
-            refreshDeviceInfo();
-            updateDeviceInfoDisplay();
-        }
-    }
-    
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            boolean allGranted = true;
-            for (int result : grantResults) {
-                if (result != PackageManager.PERMISSION_GRANTED) {
-                    allGranted = false;
-                    break;
-                }
-            }
-            
-            if (allGranted) {
-                Log.d(TAG, "所有权限已授予");
-                // 重新初始化Williw节点
-                if (williwNode == null) {
-                    initWilliwNode();
-                }
-            } else {
-                Log.w(TAG, "部分权限未授予，可能影响功能");
-                Toast.makeText(this, "部分权限未授予，可能影响设备检测功能", Toast.LENGTH_LONG).show();
-            }
+            return "我是Williw AI助手，您可以询问我关于设备信息、训练状态或其他相关问题。";
         }
     }
 }

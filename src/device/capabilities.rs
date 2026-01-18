@@ -133,12 +133,27 @@ impl DeviceCapabilities {
     }
     
     /// 获取推荐的tick间隔（毫秒）
-    pub fn recommended_tick_interval(&self) -> u64 {
-        match self.device_type {
+    pub fn recommended_tick_interval(&self) -> std::time::Duration {
+        let millis = match self.device_type {
             DeviceType::Phone => 1000,      // 手机：1秒
             DeviceType::Tablet => 500,     // 平板：0.5秒
             DeviceType::Desktop => 100,     // 桌面：0.1秒
             DeviceType::Unknown => 1000,    // 未知：1秒
+        };
+        std::time::Duration::from_millis(millis)
+    }
+    
+    /// 获取推荐的模型维度
+    pub fn recommended_model_dim(&self) -> usize {
+        // 基于内存和CPU核心数计算推荐模型维度
+        if self.max_memory_mb >= 8192 {
+            1024  // 8GB+
+        } else if self.max_memory_mb >= 4096 {
+            512   // 4GB+
+        } else if self.max_memory_mb >= 2048 {
+            256   // 2GB+
+        } else {
+            128   // <2GB
         }
     }
     
