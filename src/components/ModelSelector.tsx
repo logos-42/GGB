@@ -10,41 +10,43 @@ import {
   Chip,
   useTheme,
   alpha,
+  CircularProgress,
 } from '@mui/material';
-import { invoke } from '@tauri-apps/api/core';
 import { ModelConfig } from '../types';
+import { pythonClient } from '../utils/pythonClient';
+import { useModelStore } from '../store/modelStore';
 
 export const ModelSelector: React.FC = () => {
   const theme = useTheme();
   const [models, setModels] = useState<ModelConfig[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
+  const { selectedModel, setSelectedModel } = useModelStore();
 
   useEffect(() => {
     loadModels();
   }, []);
 
   const loadModels = async () => {
+    setLoading(true);
     try {
-      const availableModels = await invoke<ModelConfig[]>('get_available_models');
+      const availableModels = await pythonClient.listModels();
       setModels(availableModels);
-      if (availableModels.length > 0) {
+      
+      // 如果没有选中模型且有可用模型，默认选择第一个
+      if (!selectedModel && availableModels.length > 0) {
         setSelectedModel(availableModels[0].id);
       }
     } catch (error) {
       console.error('Error loading models:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleModelChange = async (event: any) => {
     const modelId = event.target.value as string;
     setSelectedModel(modelId);
-    
-    try {
-      await invoke('select_model', { modelId });
-      console.log(`Selected model: ${modelId}`);
-    } catch (error) {
-      console.error('Error selecting model:', error);
-    }
+    console.log(`Selected model: ${modelId}`);
   };
 
   const currentModel = models.find(m => m.id === selectedModel);
@@ -71,8 +73,9 @@ export const ModelSelector: React.FC = () => {
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
-                  value={selectedModel}
+                  value={selectedModel || ''}
                   onChange={handleModelChange}
+                  disabled={loading || models.length === 0}
                   sx={{
                     fontSize: '0.875rem',
                     '& .MuiOutlinedInput-root': {
@@ -82,11 +85,26 @@ export const ModelSelector: React.FC = () => {
                     },
                   }}
                 >
-                  {models.map((model) => (
-                    <MenuItem key={model.id} value={model.id} sx={{ fontSize: '0.875rem' }}>
-                      {model.name}
+                  {loading ? (
+                    <MenuItem disabled>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CircularProgress size={16} />
+                        <Typography variant="body2">加载模型中...</Typography>
+                      </Box>
                     </MenuItem>
-                  ))}
+                  ) : models.length === 0 ? (
+                    <MenuItem disabled>
+                      <Typography variant="body2" color="text.secondary">
+                        暂无可用模型
+                      </Typography>
+                    </MenuItem>
+                  ) : (
+                    models.map((model) => (
+                      <MenuItem key={model.id} value={model.id} sx={{ fontSize: '0.875rem' }}>
+                        {model.name}
+                      </MenuItem>
+                    ))
+                  )}
                 </Select>
               </FormControl>
             </Box>
