@@ -23,7 +23,7 @@ pub enum PathType {
 }
 
 /// 路径选择策略
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PathSelectionStrategy {
     PrivacyFirst,      // 隐私优先
     PerformanceFirst,  // 性能优先
@@ -34,7 +34,7 @@ pub enum PathSelectionStrategy {
 }
 
 /// 负载均衡策略
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum LoadBalanceStrategy {
     RoundRobin,        // 轮询
     Weighted,          // 加权
@@ -45,7 +45,7 @@ pub enum LoadBalanceStrategy {
 }
 
 /// 路径信息
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PathInfo {
     pub path_id: String,
     pub path_type: PathType,
@@ -548,7 +548,7 @@ impl PrivacyPathSelector {
             .iter()
             .map(|path| {
                 let score = self.calculate_path_score(path);
-                (path.clone(), score)
+                ((*path).clone(), score)
             })
             .collect();
             
@@ -815,7 +815,7 @@ impl PathDiscoverer {
 pub struct PathManager {
     selector: PrivacyPathSelector,
     discoverer: PathDiscoverer,
-    quality_analyzer: Arc<crate::routing::quality::ConnectionQualityAnalyzer>,
+    quality_analyzer: Arc<crate::network::routing::quality::ConnectionQualityAnalyzer>,
 }
 
 impl PathManager {
@@ -825,7 +825,7 @@ impl PathManager {
             selector: PrivacyPathSelector::new(config),
             discoverer: PathDiscoverer::new(),
             quality_analyzer: Arc::new(
-                crate::routing::quality::ConnectionQualityAnalyzer::new(100)
+                crate::network::routing::quality::ConnectionQualityAnalyzer::new(100)
             ),
         }
     }

@@ -70,14 +70,14 @@ pub struct RoutingStats {
 }
 
 /// 创建路由实例
-pub async fn create_router(config: &RoutingConfig) -> Result<Box<dyn Router>> {
+pub async fn create_router(config: &RoutingConfig) -> Result<SimpleRouter> {
     // 暂时返回一个简单的路由器实现
     // TODO: 实现完整的路由器逻辑
-    Ok(Box::new(SimpleRouter::new(config.clone())))
+    Ok(SimpleRouter::new(config.clone()))
 }
 
 /// 简单路由器实现
-struct SimpleRouter {
+pub struct SimpleRouter {
     config: RoutingConfig,
     stats: parking_lot::RwLock<RoutingStats>,
 }
@@ -96,7 +96,6 @@ impl SimpleRouter {
     }
 }
 
-#[async_trait::async_trait]
 impl Router for SimpleRouter {
     async fn select_route(&self, destination: &str) -> Result<RouteInfo> {
         let mut stats = self.stats.write();

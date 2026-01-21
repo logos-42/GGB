@@ -15,7 +15,6 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { TrainingStatus, DeviceInfo } from '../types';
-import { useTrainingStore } from '../store/trainingStore';
 
 // 可折叠卡片组件
 interface CollapsibleCardProps {
@@ -73,21 +72,26 @@ const CollapsibleCard: React.FC<CollapsibleCardProps> = ({ title, children, defa
 
 export const TrainingDashboard: React.FC = () => {
   const theme = useTheme();
-  const { isRunning } = useTrainingStore();
   const [trainingStatus, setTrainingStatus] = useState<TrainingStatus | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
-  const [connectedPeers, setConnectedPeers] = useState(0);
-  const [maxPeers] = useState(10);
+  const [nodeInfo, setNodeInfo] = useState<any>(null);
+  const [connectedPeers, setConnectedPeers] = useState<any[]>([]);
 
   useEffect(() => {
     loadStatus();
     loadDeviceInfo();
+    loadNodeInfo();
     loadConnectedPeers();
 
     // Poll for training status every second
     const statusInterval = setInterval(() => {
       loadStatus();
     }, 1000);
+
+    // Poll for node info every 5 seconds
+    const nodeInterval = setInterval(() => {
+      loadNodeInfo();
+    }, 5000);
 
     // Poll for connected peers every minute
     const peersInterval = setInterval(() => {
@@ -106,22 +110,30 @@ export const TrainingDashboard: React.FC = () => {
 
     return () => {
       clearInterval(statusInterval);
+      clearInterval(nodeInterval);
       clearInterval(peersInterval);
       clearInterval(deviceInterval);
       unlisten.then(fn => fn());
     };
   }, []);
 
+  const loadNodeInfo = async () => {
+    try {
+      const info = await invoke<any>('get_node_info');
+      setNodeInfo(info);
+    } catch (error) {
+      console.error('Error loading node info:', error);
+      setNodeInfo(null);
+    }
+  };
+
   const loadConnectedPeers = async () => {
     try {
-      // TODO: 调用后端API获取实际连接数
-      // const peers = await invoke<number>('get_connected_peers');
-      // 暂时使用模拟数据（固定值，避免跳动）
-      const peers = isRunning ? 3 : 0;
+      const peers = await invoke<any[]>('get_connected_peers');
       setConnectedPeers(peers);
     } catch (error) {
       console.error('Error loading connected peers:', error);
-      setConnectedPeers(0);
+      setConnectedPeers([]);
     }
   };
 
@@ -267,47 +279,136 @@ export const TrainingDashboard: React.FC = () => {
         </CollapsibleCard>
       </Grid>
 
-      {/* 网络状态卡片 */}
+      {/* 节点信息卡片 */}
       <Grid item xs={12}>
-        <CollapsibleCard title="网络状态">
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
-              <Box
-                sx={{
-                  p: 1.5,
-                  borderRadius: 1,
-                  background: alpha(isRunning ? theme.palette.success.main : theme.palette.grey[700], 0.1),
-                  textAlign: 'center',
-                }}
-              >
-                <Typography variant="h4" color={isRunning ? 'success.main' : 'text.secondary'} sx={{ fontSize: '1.5rem' }}>
-                  {isRunning ? '在线' : '离线'}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                  节点状态
-                </Typography>
-              </Box>
-            </Grid>
+        <CollapsibleCard title="节点信息">
+          {nodeInfo ? (
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1,
+                    background: alpha(nodeInfo.is_running ? theme.palette.success.main : theme.palette.grey[700], 0.1),
+                    textAlign: 'center',
+                  }}
+                >
+                  <Typography variant="h6" color={nodeInfo.is_running ? 'success.main' : 'text.secondary'} sx={{ fontSize: '1.2rem' }}>
+                    {nodeInfo.is_running ? '运行中' : '已停止'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                    节点状态
+                  </Typography>
+                  {nodeInfo.id && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontFamily: 'monospace' }}>
+                      ID: {nodeInfo.id.slice(0, 16)}...
+                    </Typography>
+                  )}
+                </Box>
+              </Grid>
 
+              <Grid item xs={12} md={6}>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1,
+                    background: alpha(theme.palette.info.main, 0.1),
+                    textAlign: 'center',
+                  }}
+                >
+                  <Typography variant="h6" color="info.main" sx={{ fontSize: '1.2rem' }}>
+                    {nodeInfo.tick_counter || 0}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                    训练周期
+                  </Typography>
+                </Box>
+              </Grid>
 
-            <Grid item xs={12} md={6}>
-              <Box
-                sx={{
-                  p: 1.5,
-                  borderRadius: 1,
-                  background: alpha(theme.palette.warning.main, 0.1),
-                  textAlign: 'center',
-                }}
-              >
-                <Typography variant="h4" color="warning.main" sx={{ fontSize: '1.5rem' }}>
-                  {connectedPeers}/{maxPeers}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                  连接节点数
-                </Typography>
-              </Box>
+              {nodeInfo.device_capabilities && (
+                <>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      内存
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {nodeInfo.device_capabilities.max_memory_mb}MB
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      CPU核心
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {nodeInfo.device_capabilities.cpu_cores}核
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      GPU
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {nodeInfo.device_capabilities.has_gpu ? '有' : '无'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      网络类型
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {nodeInfo.device_capabilities.network_type || '未知'}
+                    </Typography>
+                  </Grid>
+                </>
+              )}
             </Grid>
-          </Grid>
+          ) : (
+            <Typography color="text.secondary" variant="body2">节点未启动</Typography>
+          )}
+        </CollapsibleCard>
+      </Grid>
+
+      {/* 连接节点卡片 */}
+      <Grid item xs={12}>
+        <CollapsibleCard title="连接节点" defaultCollapsed={true}>
+          {connectedPeers.length > 0 ? (
+            <Grid container spacing={1}>
+              {connectedPeers.map((peer, index) => (
+                <Grid item xs={12} sm={6} md={4} key={peer.id || index}>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 1,
+                      background: alpha(
+                        peer.type === 'primary' ? theme.palette.success.main : theme.palette.warning.main,
+                        0.1
+                      ),
+                      border: `1px solid ${
+                        peer.type === 'primary' 
+                          ? alpha(theme.palette.success.main, 0.3)
+                          : alpha(theme.palette.warning.main, 0.3)
+                      }`,
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 500, fontFamily: 'monospace' }}>
+                      {peer.id ? `${peer.id.slice(0, 12)}...` : 'Unknown'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      类型: {peer.type === 'primary' ? '主节点' : '备份节点'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      相似度: {peer.similarity?.toFixed(3) || 'N/A'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      地理亲和: {peer.geo_affinity?.toFixed(3) || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          ) : (
+            <Typography color="text.secondary" variant="body2">暂无连接节点</Typography>
+          )}
         </CollapsibleCard>
       </Grid>
     </Grid>

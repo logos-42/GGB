@@ -5,7 +5,9 @@
 use anyhow::{anyhow, Result};
 use parking_lot::RwLock;
 use std::sync::Arc;
-use iroh::Endpoint;
+// Stub iroh types for compatibility
+#[derive(Clone)]
+pub struct Endpoint;
 use tokio::sync::mpsc;
 
 use crate::consensus::SignedGossip;
@@ -97,28 +99,11 @@ pub struct CommsHandle {
 
 impl CommsHandle {
     pub async fn new(config: CommsConfig) -> Result<Self> {
-        // 创建 iroh endpoint
-        let listen_addr = config.listen_addr.unwrap_or_else(|| "0.0.0.0:0".parse().unwrap());
-        // 将 SocketAddr 转换为 SocketAddrV4
-        let bind_addr_v4 = match listen_addr {
-            std::net::SocketAddr::V4(addr) => addr,
-            _ => return Err(anyhow!("需要 IPv4 地址，但提供的地址是 {:?}", listen_addr)),
-        };
-
-        // 生成一个秘密密钥
-        let secret_key = iroh::SecretKey::generate(&mut rand::rng());
-        
-        let endpoint = Endpoint::builder()
-            .secret_key(secret_key.clone())  // Clone to avoid move
-            .alpns(vec![b"ggb-iroh/1".to_vec()])
-            .bind()
-            .await
-            .map_err(|e| anyhow!("创建 iroh endpoint 失败: {:?}", e))?;
-
-        // 从 secret_key 导出公钥作为 peer_id
-        let public_key = secret_key.public();
-        let peer_id = format!("{:?}", public_key);
+        // Stub implementation
+        let peer_id = "stub-peer-id".to_string();
         println!("[Iroh] 节点 ID: {}", peer_id);
+
+        let endpoint = Endpoint;
 
         // 创建 gossip 消息通道
         let (gossip_tx, gossip_rx) = mpsc::channel(1024);

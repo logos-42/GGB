@@ -7,7 +7,7 @@ use std::time::{Instant, Duration};
 use parking_lot::RwLock;
 
 /// 连接质量指标
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConnectionQuality {
     /// 延迟（毫秒）
     pub latency_ms: f32,

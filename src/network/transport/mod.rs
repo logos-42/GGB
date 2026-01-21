@@ -73,7 +73,7 @@ pub struct TransportStats {
 }
 
 /// 创建传输实例
-pub async fn create_transport(config: &TransportConfig) -> anyhow::Result<Box<dyn Transport>> {
+pub async fn create_transport(config: &TransportConfig) -> anyhow::Result<IrohTransport> {
     match config.transport_type {
         TransportType::Iroh => {
             let iroh_config = IrohConfig {
@@ -82,7 +82,7 @@ pub async fn create_transport(config: &TransportConfig) -> anyhow::Result<Box<dy
                 enable_tls: config.enable_tls,
                 enable_compression: config.enable_compression,
             };
-            Ok(Box::new(IrohTransport::new(iroh_config).await?))
+            Ok(IrohTransport::new(iroh_config).await?)
         }
     }
 }

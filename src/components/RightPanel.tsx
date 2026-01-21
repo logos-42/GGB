@@ -10,7 +10,6 @@ interface RightPanelProps {
 
 export const RightPanel: React.FC<RightPanelProps> = ({
   isRightPanelVisible,
-  splitPercentage,
   onShowPanel
 }) => {
   return (

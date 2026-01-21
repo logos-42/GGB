@@ -1,7 +1,7 @@
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-// use williw::node::Node;  // Commented out - node module doesn't exist
+use williw::Node;
 
 /// Application settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,11 +119,11 @@ pub struct ApiKeyEntry {
 pub struct AppState {
     pub settings: Arc<Mutex<AppSettings>>,
     pub training_status: Arc<Mutex<TrainingStatus>>,
-    // pub node: Arc<Mutex<Option<Node>>>,  // Commented out - Node doesn't exist yet
-    pub node: Arc<Mutex<Option<()>>>,  // Placeholder until Node is implemented
+    pub node: Arc<Mutex<Option<Node>>>,  // 使用真实的Node
     pub available_models: Arc<Mutex<Vec<ModelConfig>>>,
     pub device_info: Arc<Mutex<Option<DeviceInfo>>>,
     pub api_keys: Arc<Mutex<Vec<ApiKeyEntry>>>,
+    pub api_client: crate::api_client::WorkersApiClient,
 }
 
 impl AppState {
@@ -194,10 +194,13 @@ impl AppState {
         Self {
             settings: Arc::new(Mutex::new(AppSettings::default())),
             training_status: Arc::new(Mutex::new(TrainingStatus::default())),
-            node: Arc::new(Mutex::new(None)),
+            node: Arc::new(Mutex::new(None)),  // 真实的Node，初始为None
             available_models: Arc::new(Mutex::new(models)),
             device_info: Arc::new(Mutex::new(Some(device_info))),
             api_keys: Arc::new(Mutex::new(vec![])),
+            api_client: crate::api_client::WorkersApiClient::new(
+                "https://williw.sirazede725.workers.dev".to_string()
+            ),
         }
     }
 

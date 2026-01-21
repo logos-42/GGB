@@ -4,6 +4,7 @@
 mod commands;
 mod state;
 mod events;
+mod api_client;
 
 use tauri::Emitter;
 use state::AppState;
@@ -29,6 +30,15 @@ async fn main() {
             commands::create_api_key,
             commands::delete_api_key,
             commands::update_api_key_name,
+            commands::get_node_info,
+            commands::get_connected_peers,
+            commands::upload_device_info_to_workers,
+            commands::upload_model_selection_to_workers,
+            commands::upload_training_data_to_workers,
+            commands::test_workers_connection,
+            commands::request_inference_from_workers,
+            commands::reassign_node_from_workers,
+            commands::check_node_health_from_workers,
         ])
         .setup(|app| {
             // Initialize event handlers

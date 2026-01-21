@@ -48,8 +48,8 @@ impl Default for BandwidthBudgetConfig {
 
 /// 网络句柄
 pub struct NetworkHandle {
-    transport: Box<dyn Transport>,
-    router: Box<dyn Router>,
+    transport: transport::IrohTransport,
+    router: routing::SimpleRouter,
     config: NetworkConfig,
 }
 
@@ -68,8 +68,15 @@ impl NetworkHandle {
     
     /// 发送消息
     pub async fn send(&self, destination: &str, message: &[u8]) -> anyhow::Result<()> {
-        let route = self.router.select_route(destination).await?;
-        self.transport.send(&route, message).await
+        let routing_route = self.router.select_route(destination).await?;
+        // Convert routing RouteInfo to transport RouteInfo
+        let transport_route = transport::RouteInfo {
+            destination: routing_route.destination,
+            transport_type: transport::TransportType::Iroh,
+            address: routing_route.path.first().unwrap_or(&destination.to_string()).clone(),
+            quality_score: routing_route.quality_score,
+        };
+        self.transport.send(&transport_route, message).await
     }
     
     /// 接收消息

@@ -74,7 +74,7 @@ pub fn build_initialize_instruction(
     treasury: &Pubkey,
     global_state: &Pubkey,
 ) -> Result<Instruction> {
-    let data = DecentralizedTrainingInstruction::Initialize.try_to_vec()
+    let data = borsh::to_vec(&DecentralizedTrainingInstruction::Initialize)
         .map_err(|e| anyhow!("Failed to serialize instruction: {}", e))?;
 
     let accounts = vec![
@@ -101,12 +101,12 @@ pub fn build_register_node_instruction(
     name: String,
     device_type: String,
 ) -> Result<Instruction> {
-    let data = DecentralizedTrainingInstruction::RegisterNode {
+    let data = borsh::to_vec(&DecentralizedTrainingInstruction::RegisterNode {
         node_id,
         name,
         device_type,
-    }.try_to_vec()
-        .map_err(|e| anyhow!("Failed to serialize instruction: {}", e))?;
+    })
+    .map_err(|e| anyhow!("Failed to serialize instruction: {}", e))?;
 
     let accounts = vec![
         AccountMeta::new(*node_account, false),
@@ -144,7 +144,7 @@ pub fn build_record_contribution_instruction(
     batches_processed: u64,
     compute_score: f64,
 ) -> Result<Instruction> {
-    let data = DecentralizedTrainingInstruction::RecordContribution {
+    let data = borsh::to_vec(&DecentralizedTrainingInstruction::RecordContribution {
         contribution_id,
         task_id,
         start_timestamp,
@@ -159,8 +159,8 @@ pub fn build_record_contribution_instruction(
         samples_processed,
         batches_processed,
         compute_score,
-    }.try_to_vec()
-        .map_err(|e| anyhow!("Failed to serialize instruction: {}", e))?;
+    })
+    .map_err(|e| anyhow!("Failed to serialize instruction: {}", e))?;
 
     let accounts = vec![
         AccountMeta::new(*contribution_account, false),
@@ -187,7 +187,7 @@ pub fn build_distribute_rewards_instruction(
     node_wallet: &Pubkey,
     authority: &Pubkey,
 ) -> Result<Instruction> {
-    let data = DecentralizedTrainingInstruction::DistributeRewards.try_to_vec()
+    let data = borsh::to_vec(&DecentralizedTrainingInstruction::DistributeRewards)
         .map_err(|e| anyhow!("Failed to serialize instruction: {}", e))?;
 
     let accounts = vec![
@@ -215,11 +215,11 @@ pub fn build_create_multisig_instruction(
     owners: Vec<Pubkey>,
     threshold: u64,
 ) -> Result<Instruction> {
-    let data = DecentralizedTrainingInstruction::CreateMultisig {
+    let data = borsh::to_vec(&DecentralizedTrainingInstruction::CreateMultisig {
         owners,
         threshold,
-    }.try_to_vec()
-        .map_err(|e| anyhow!("Failed to serialize instruction: {}", e))?;
+    })
+    .map_err(|e| anyhow!("Failed to serialize instruction: {}", e))?;
 
     let accounts = vec![
         AccountMeta::new(*multisig_account, false),

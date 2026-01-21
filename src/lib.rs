@@ -10,8 +10,8 @@ pub mod device;
 pub mod crypto;
 pub mod consensus;
 
-// Solana 区块链集成
-pub mod solana;
+// Solana 区块链集成 - 暂时禁用，由于依赖冲突
+// pub mod solana;
 
 // Cloudflare Workers 集成
 #[cfg(feature = "workers")]
@@ -20,6 +20,18 @@ pub mod workers;
 // Android JNI 集成
 #[cfg(feature = "android")]
 pub mod android;
+
+// 节点模块
+pub mod node;
+
+// 训练模块
+pub mod training;
+
+// 拓扑模块
+pub mod topology;
+
+// 统计模块
+pub mod stats;
 
 // 配置模块
 pub mod config;
@@ -40,6 +52,7 @@ pub mod network;
 // 重新导出常用类型
 pub use device::{DeviceConfig, DeviceCapabilities, DeviceManager};
 pub use consensus::{ConsensusConfig, ConsensusEngine};
+pub use node::Node;
 
 // 重新导出Android模块
 #[cfg(feature = "android")]

@@ -6,6 +6,33 @@ use crate::device::{DeviceCapabilities, DeviceManager};
 // use iroh::NodeAddr;  // 注释掉，因为API可能已改变
 use serde::{Deserialize, Serialize};
 
+/// 训练配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrainingConfig {
+    /// 模型维度
+    pub model_dim: usize,
+    /// 学习率
+    pub learning_rate: f64,
+    /// 批量大小
+    pub batch_size: usize,
+    /// 训练轮数
+    pub epochs: u32,
+    /// 是否启用分布式训练
+    pub enable_distributed: bool,
+}
+
+impl Default for TrainingConfig {
+    fn default() -> Self {
+        Self {
+            model_dim: 768,
+            learning_rate: 0.001,
+            batch_size: 32,
+            epochs: 10,
+            enable_distributed: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityConfig {
     pub hide_ip: bool,
@@ -255,6 +282,7 @@ pub struct AppConfig {
     // 移除DeviceManager的序列化，改为存储DeviceCapabilities
     pub device_capabilities: DeviceCapabilities,
     pub security: SecurityConfig,
+    pub training: TrainingConfig,
 }
 
 impl AppConfig {
@@ -296,6 +324,7 @@ impl AppConfig {
             consensus: ConsensusConfig::default(),
             device_capabilities: capabilities,
             security: SecurityConfig::default(),
+            training: TrainingConfig::default(),
         }
     }
 }
@@ -311,6 +340,7 @@ impl Default for AppConfig {
             consensus: ConsensusConfig::default(),
             device_capabilities: capabilities,
             security: SecurityConfig::default(),
+            training: TrainingConfig::default(),
         }
     }
 }

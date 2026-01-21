@@ -9,6 +9,7 @@ use crate::training::TrainingEngine;
 use crate::types::{GeoPoint, GgbMessage};
 use anyhow::Result;
 use futures::StreamExt;
+use rand::{Rng, SeedableRng};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::time::{interval, Duration};
@@ -27,7 +28,10 @@ pub struct Node {
 
 impl Node {
     pub async fn new(config: AppConfig) -> Result<Self> {
-        let mut rng = rand::rng();
+        let mut rng = rand::rngs::StdRng::from_seed([
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+            17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+        ]);
         let geo = GeoPoint::random(&mut rng);
         let capabilities = config.device_capabilities.clone();
 
@@ -85,11 +89,11 @@ impl Node {
 
     pub async fn run(mut self) -> Result<()> {
         let capabilities = self.device_manager.get();
-        let mut tick_interval_ms = capabilities.recommended_tick_interval();
-        let mut ticker = interval(Duration::from_millis(tick_interval_ms));
+        let mut tick_interval = capabilities.recommended_tick_interval();
+        let mut ticker = interval(tick_interval);
         let mut device_refresh = interval(Duration::from_secs(60)); // 每分钟刷新设备状态
 
-        println!("训练频率: {}ms", tick_interval_ms);
+        println!("训练频率: {:?}ms", tick_interval);
 
         loop {
             // 检查是否应该暂停训练（低电量）
@@ -113,11 +117,11 @@ impl Node {
                 _ = ticker.tick() => {
                     // 动态调整 tick 间隔（如果电池状态变化）
                     let caps = self.device_manager.get();
-                    let new_interval_ms = caps.recommended_tick_interval();
-                    if new_interval_ms != tick_interval_ms {
-                        tick_interval_ms = new_interval_ms;
-                        ticker = interval(Duration::from_millis(tick_interval_ms));
-                        println!("[自适应] 调整训练频率: {}ms", tick_interval_ms);
+                    let new_interval = caps.recommended_tick_interval();
+                    if new_interval != tick_interval {
+                        tick_interval = new_interval;
+                        ticker = interval(tick_interval);
+                        println!("[自适应] 调整训练频率: {:?}ms", tick_interval);
                     }
                     self.on_tick().await?;
                 }

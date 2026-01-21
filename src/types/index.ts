@@ -6,6 +6,8 @@ export interface ModelConfig {
   dimensions: number;
   learning_rate: number;
   batch_size: number;
+  type?: string;
+  size?: string;
 }
 
 /// Training status from backend
