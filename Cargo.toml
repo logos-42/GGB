@@ -58,6 +58,8 @@ borsh = { version = "1.5", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 log = "0.4"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 # WASM和零知识证明依赖
 wasm-bindgen = { version = "0.2", optional = true }
@@ -103,6 +105,10 @@ path = "examples/simple_distance_test.rs"
 [[example]]
 name = "comms_distance_test"
 path = "examples/comms_distance_test.rs"
+
+[[example]]
+name = "hf_model_demo"
+path = "examples/hf_model_demo.rs"
 
 [[bin]]
 name = "analyze_training"

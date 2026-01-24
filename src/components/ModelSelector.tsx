@@ -190,3 +190,12 @@ export const ModelSelector: React.FC = () => {
     </Box>
   );
 };
+  </Typography>
+              </Alert>
+            )}
+          </Box>
+        </CardContent>
+      </Card>
+    </Box>
+  );
+};

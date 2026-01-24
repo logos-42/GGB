@@ -7,8 +7,8 @@ pub mod routing;
 pub mod latency;
 
 // 重新导出公共接口
-pub use transport::*;
-pub use routing::*;
+pub use transport::{TransportConfig, TransportStats, TransportType, create_transport, Transport};
+pub use routing::{RoutingConfig, RoutingStats, SimpleRouter, create_router, Router};
 pub use latency::*;
 
 /// 网络配置

@@ -127,3 +127,24 @@ export const AppLayout: React.FC = () => {
     </Box>
   );
 };
+ttingsPanel onClose={closeSettings} />}
+    </Box>
+  );
+};
+
+          />
+        </Box>
+
+        {/* 右侧：聊天框 */}
+        <RightPanel
+          isRightPanelVisible={isRightPanelVisible}
+          splitPercentage={splitPercentage}
+          onShowPanel={handleShowPanel}
+        />
+      </Box>
+
+      {/* 设置面板 */}
+      {isSettingsOpen && <SettingsPanel onClose={closeSettings} />}
+    </Box>
+  );
+};
