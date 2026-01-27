@@ -241,6 +241,55 @@ iOS 集成代码位于 `ios/` 目录，包含：
 - C 兼容的 FFI 接口，供 Android/iOS 移动端调用
 - 支持设备能力查询、网络状态更新、电池状态更新等功能
 
+## P2P 模型分发
+
+基于 iroh 的点对点模型分发系统，支持将已经切分好的模型分片安全地分发给其他节点。
+
+### 核心特性
+- ✅ **点对点传输** - 基于 iroh 的高效 P2P 通信
+- ✅ **完整性校验** - SHA256 哈希确保文件完整性
+- ✅ **断点续传** - 支持传输中断后恢复
+- ✅ **并发传输** - 多文件并行传输
+- ✅ **进度监控** - 实时传输进度显示
+- ✅ **加密传输** - 可选的端到端加密
+
+### 快速开始
+
+#### 运行完整演示
+```bash
+# 自动运行发送端和接收端
+cargo run --release --example p2p_model_distribution_demo -- full \
+    --demo-dir "./demo_output" \
+    --shard-dir "./test_models/test_models/simple_split"
+```
+
+#### 手动启动两端
+```bash
+# 启动接收端（目标电脑）
+cargo run --release --example p2p_model_distribution_demo -- receive \
+    --node-id "receiver" \
+    --output-dir "./received_models" \
+    --port 9236
+
+# 启动发送端（源电脑）
+cargo run --release --example p2p_model_distribution_demo -- send \
+    --node-id "sender" \
+    --target-peer "receiver" \
+    --shard-dir "./test_models/test_models/simple_split" \
+    --port 9235
+```
+
+#### 自动化测试
+```bash
+# Linux/Mac
+./scripts/test_p2p_distribution.sh
+
+# Windows
+.\scripts\test_p2p_distribution.ps1
+```
+
+详细使用指南请参考 [docs/P2P_DISTRIBUTION_GUIDE.md](docs/P2P_DISTRIBUTION_GUIDE.md)
+
 ## 模型管理
 
 ### 模型持久化

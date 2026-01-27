@@ -6,6 +6,14 @@ pub mod config;
 pub mod handle;
 pub mod iroh;
 pub mod routing;
+pub mod p2p_distributor;
+pub mod p2p_sender;
+pub mod p2p_receiver;
+pub mod transfer_protocol;
+pub mod p2p_frontend_manager;
+// pub mod p2p_web_integration; // 暂时禁用
+pub mod p2p_frontend_starter;
+pub mod p2p_app_integration;
 
 // 重新导出常用类型
 pub use config::{CommsConfig, BandwidthBudgetConfig};

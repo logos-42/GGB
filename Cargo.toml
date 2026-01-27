@@ -43,6 +43,20 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 log = "0.4"
 
+# File transfer and integrity
+md5 = "0.7"
+blake3 = "1.5"
+digest = "0.10"
+
+# CLI argument parsing
+clap = { version = "4.0", features = ["derive"] }
+
+# WebAssembly support (optional)
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+
 # Concurrency utilities
 parking_lot = "0.12"
 rayon = "1.8"
@@ -55,7 +69,6 @@ battery = "0.7"
 # Cryptographic utilities
 cbc = "0.1"
 block-padding = "0.3"
-blake3 = "1.5"
 
 # Async utilities
 futures = "0.3"
@@ -66,11 +79,9 @@ ethers = { version = "2.0", features = ["ws", "rustls"], optional = true }
 ethers-core = { version = "2.0", optional = true }
 
 # WASM和零知识证明依赖
-wasm-bindgen = { version = "0.2", optional = true }
-js-sys = { version = "0.3.83", optional = true }
+serde-wasm-bindgen = { version = "0.6.5", optional = true }
 web-sys = { version = "0.3", optional = true, features = [] }
 nori = { version = "0.1", optional = true }
-serde-wasm-bindgen = { version = "0.6.5", optional = true }
 
 # Android JNI依赖
 jni = { version = "0.21", optional = true }
@@ -82,10 +93,9 @@ default = ["async-trait"]
 ffi = []
 android = ["jni", "android_log", "lazy_static"]
 blockchain = ["async-trait", "ethers", "ethers-core"]
-wasm = ["wasm-bindgen", "js-sys", "web-sys", "serde-wasm-bindgen"]
+wasm = ["wasm-bindgen", "web-sys", "js-sys", "wasm-bindgen-futures", "console_error_panic_hook"]
 workers = ["wasm", "async-trait"]
 zk_proof = ["nori"]
-
 
 # 为 Android 构建配置库类型
 [lib]
@@ -97,6 +107,10 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 [[bin]]
 name = "williw-bin"
 path = "src/main.rs"
+
+[[bin]]
+name = "p2p_model_distribution_demo"
+path = "src/bin/p2p_model_distribution_demo.rs"
 
 [[example]]
 name = "multi_node_test"
@@ -111,12 +125,24 @@ name = "comms_distance_test"
 path = "examples/comms_distance_test.rs"
 
 [[example]]
+name = "desktop_app_integration_example"
+path = "examples/desktop_app_integration_example.rs"
+
+[[example]]
 name = "hf_model_demo"
 path = "examples/hf_model_demo.rs"
 
 [[example]]
 name = "model_distribution_demo"
 path = "examples/model_distribution_demo.rs"
+
+[[example]]
+name = "p2p_frontend_integration_test"
+path = "examples/p2p_frontend_integration_test.rs"
+
+[[example]]
+name = "p2p_model_distribution_demo"
+path = "examples/p2p_model_distribution_demo.rs"
 
 [[example]]
 name = "simple_model_test"

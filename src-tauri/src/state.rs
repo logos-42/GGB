@@ -131,6 +131,14 @@ impl AppState {
         // Initialize available models
         let models = vec![
             ModelConfig {
+                id: "lfm2.5-1.2b-thinking".to_string(),
+                name: "LFM2.5 1.2B Thinking".to_string(),
+                description: "LiquidAI LFM2.5 1.2B parameter thinking model for advanced reasoning".to_string(),
+                dimensions: 2048,
+                learning_rate: 1e-5,
+                batch_size: 8,
+            },
+            ModelConfig {
                 id: "bert-base-uncased".to_string(),
                 name: "BERT Base".to_string(),
                 description: "Google BERT (Bidirectional Encoder Representations from Transformers) 12-layer, 768-hidden".to_string(),
