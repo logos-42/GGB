@@ -12,7 +12,7 @@ use tokio;
 use tracing::{info, warn, error};
 use tracing_subscriber;
 
-use crate::comms::p2p_distributor::{P2PModelDistributor, FileTransferMessage};
+use crate::comms::p2p::distributor::{P2PModelDistributor, FileTransferMessage};
 
 /// P2P 模型分发发送端
 #[derive(Parser)]

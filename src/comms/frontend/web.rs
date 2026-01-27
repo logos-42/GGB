@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
+use anyhow::Result;
 
-use crate::comms::p2p_frontend_manager::{P2PFrontendManager, P2PNodeInfo, P2PConnectionStats};
+use crate::comms::frontend::manager::{P2PFrontendManager, P2PNodeInfo, P2PConnectionStats};
 
 /// P2P 前端控制器
 pub struct P2PWebController {

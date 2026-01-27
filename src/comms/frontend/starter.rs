@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn, error};
 
-use crate::comms::p2p_frontend_manager::P2PFrontendManager;
+use crate::comms::frontend::manager::{P2PFrontendManager, P2PNodeInfo, P2PConnectionStats};
 
 /// P2P 前端启动器
 pub struct P2PFrontendStarter {

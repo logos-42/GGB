@@ -14,7 +14,7 @@ use crate::consensus::SignedGossip;
 use crate::device::NetworkType;
 
 use super::config::{CommsConfig, BandwidthBudget};
-use super::iroh::QuicGateway;
+use crate::comms::transport::iroh::QuicGateway;
 
 /// Topic 类型（用于发布/订阅）
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -108,15 +108,27 @@ impl CommsHandle {
         // 创建 gossip 消息通道
         let (gossip_tx, gossip_rx) = mpsc::channel(1024);
         // 创建事件通道
-        let (event_tx, event_rx) = mpsc::channel(1024);
+        let (event_tx, event_rx) = mpsc::channel::<IrohEvent>(1024);
 
         // 初始化 QUIC 网关（用于实时通信）
-        let quic = if let Some(bind) = config.quic_bind {
-            let gateway = Arc::new(QuicGateway::new(bind)?);
-            for addr in &config.quic_bootstrap {
-                let _ = gateway.connect(*addr).await;
+        let quic: Option<Arc<QuicGateway>> = if let Some(bind) = config.quic_bind {
+            let quic_bootstrap = config.quic_bootstrap.clone();
+            match tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(QuicGateway::new(bind))
+            }) {
+                Ok(gateway) => {
+                    let gateway = Arc::new(gateway);
+                    // 在异步上下文中处理连接
+                    for addr in quic_bootstrap {
+                        let gateway_clone = gateway.clone();
+                        tokio::spawn(async move {
+                            let _ = gateway_clone.connect(addr).await;
+                        });
+                    }
+                    Some(gateway)
+                }
+                Err(_) => None,
             }
-            Some(gateway)
         } else {
             None
         };

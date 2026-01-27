@@ -1,23 +1,34 @@
 //! 通讯模块
 //!
 //! 使用 iroh 作为底层通讯协议
+//!
+//! ## 模块结构
+//! - `core`: 核心通信功能（配置、句柄、路由）
+//! - `p2p`: P2P文件分发（分发器、发送端、接收端）
+//! - `frontend`: 前端集成（管理器、启动器、Web）
+//! - `transport`: 传输层（iroh集成、传输协议）
+//! - `monitoring`: 监控（仪表板）
+//! - `integration`: 应用集成
 
-pub mod config;
-pub mod handle;
-pub mod iroh;
-pub mod routing;
-pub mod p2p_distributor;
-pub mod p2p_sender;
-pub mod p2p_receiver;
-pub mod transfer_protocol;
-pub mod p2p_frontend_manager;
-// pub mod p2p_web_integration; // 暂时禁用
-pub mod p2p_frontend_starter;
-pub mod p2p_app_integration;
+pub mod core;
+pub mod p2p;
+pub mod frontend;
+pub mod transport;
+pub mod monitoring;
+pub mod integration;
 
 // 重新导出常用类型
-pub use config::{CommsConfig, BandwidthBudgetConfig};
-pub use handle::{CommsHandle, IrohEvent, Topic};
+pub use core::{CommsConfig, BandwidthBudgetConfig, CommsHandle, IrohEvent, Topic};
+pub use p2p::{P2PModelDistributor, TransferEvent, EventManager, get_global_event_manager};
+pub use transport::{IrohConnectionManager, IrohConnectionConfig, ConnectionStats, WrappedMessage};
+pub use monitoring::MonitoringDashboard;
+pub use frontend::{P2PFrontendManager, P2PFrontendStarter};
+pub use integration::P2PAppIntegration;
+
+// 为了向后兼容，导出旧模块名
+pub use p2p::distributor as p2p_distributor;
+pub use frontend::manager as p2p_frontend_manager;
+pub use frontend::starter as p2p_frontend_starter;
 
 use anyhow::Result;
 

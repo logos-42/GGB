@@ -5,9 +5,10 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1", default-features = false, features = ["rt", "time", "sync"] }
-iroh = "0.8"
+iroh = "0.95"
 
 async-trait = { version = "0.1", optional = true }
+lazy_static = { version = "1.4", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.9.8"
@@ -86,7 +87,6 @@ nori = { version = "0.1", optional = true }
 # Android JNI依赖
 jni = { version = "0.21", optional = true }
 android_log = { version = "0.1", optional = true }
-lazy_static = { version = "1.4", optional = true }
 
 [features]
 default = ["async-trait"]
@@ -157,8 +157,8 @@ name = "test_metadata_uploader"
 path = "examples/test_metadata_uploader.rs"
 
 [[example]]
-name = "upload_real_metadata"
-path = "examples/upload_real_metadata.rs"
+name = "enhanced_p2p_demo"
+path = "examples/enhanced_p2p_demo.rs"
 
 [[bin]]
 name = "analyze_training"
