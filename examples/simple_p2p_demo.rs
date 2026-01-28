@@ -7,8 +7,9 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 use tokio;
-use tracing::info;
+use tracing::{info, error, warn};
 use tracing_subscriber;
+use chrono;
 
 use williw::comms::{P2PAppFactory, IrohConnectionManager, IrohConnectionConfig};
 
@@ -70,8 +71,14 @@ async fn main() -> Result<()> {
     let iroh_node_id = connection_manager.node_id();
     
     info!("🔑 iroh 节点 ID: {}", iroh_node_id);
-    info!("� 您可以将此 iroh 节点 ID 分享给其他节点进行连接");
+    info!("📋 您可以将此 iroh 节点 ID 分享给其他节点进行连接");
     info!("🔗 其他节点可以使用此 ID 连接到您的节点");
+
+    // 启动接收服务
+    let connection_manager_clone = connection_manager.clone();
+    tokio::spawn(async move {
+        start_receive_service(connection_manager_clone).await;
+    });
 
     // 如果指定了发送文件，则执行发送
     if let (Some(file_path), Some(peer_id)) = (args.send_file, args.peer_id) {
@@ -113,4 +120,57 @@ async fn main() -> Result<()> {
 
     // 保持运行
     app.run().await
+}
+
+/// 启动接收服务
+async fn start_receive_service(connection_manager: IrohConnectionManager) {
+    info!("🔄 启动P2P接收服务...");
+    
+    // 创建接收目录
+    let receive_dir = std::path::PathBuf::from("./received_files");
+    if let Err(e) = tokio::fs::create_dir_all(&receive_dir).await {
+        error!("❌ 无法创建接收目录: {}", e);
+        return;
+    }
+    info!("📁 文件接收目录: {}", receive_dir.display());
+    
+    let mut file_counter = 0;
+    
+    // 持续监听传入的消息
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        
+        // 尝试接收消息
+        match connection_manager.receive_message().await {
+            Ok(Some((sender_id, data))) => {
+                info!("📥 接收到来自 {} 的文件，大小: {} 字节", sender_id, data.len());
+                
+                // 生成文件名
+                file_counter += 1;
+                let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+                let filename = format!("received_{}_{}.bin", timestamp, file_counter);
+                let filepath = receive_dir.join(filename);
+                
+                // 保存文件
+                match tokio::fs::write(&filepath, &data).await {
+                    Ok(_) => {
+                        info!("✅ 文件已保存: {}", filepath.display());
+                        info!("📊 文件大小: {} 字节", data.len());
+                        info!("👤 发送方: {}", sender_id);
+                    }
+                    Err(e) => {
+                        error!("❌ 保存文件失败: {}", e);
+                    }
+                }
+            }
+            Ok(None) => {
+                // 没有消息，继续等待
+                continue;
+            }
+            Err(e) => {
+                warn!("⚠️ 接收消息时出错: {}", e);
+                // 继续运行，不因为单个错误停止服务
+            }
+        }
+    }
 }

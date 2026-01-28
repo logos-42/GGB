@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{info, warn, error, debug};
 use serde::{Serialize, Deserialize};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 // 兼容原有的Gossip功能
 use crate::consensus::SignedGossip;
@@ -44,12 +45,12 @@ impl Default for IrohConnectionConfig {
 }
 
 /// Iroh连接管理器
+#[derive(Clone)]
 pub struct IrohConnectionManager {
     endpoint: Endpoint,
     config: IrohConnectionConfig,
     connections: Arc<Mutex<HashMap<String, Connection>>>,
     message_tx: mpsc::Sender<(String, Vec<u8>)>,
-    message_rx: mpsc::Receiver<(String, Vec<u8>)>,
     node_id: String,
 }
 
@@ -72,7 +73,7 @@ impl IrohConnectionManager {
         let node_id = endpoint.id().to_z32();
         info!("✅ iroh 端点已创建，节点ID: {}", node_id);
         
-        let (message_tx, message_rx) = mpsc::channel::<(String, Vec<u8>)>(1000);
+        let (message_tx, _message_rx) = mpsc::channel::<(String, Vec<u8>)>(1000);
         let connections = Arc::new(Mutex::new(HashMap::new()));
         
         Ok(Self {
@@ -80,7 +81,6 @@ impl IrohConnectionManager {
             config,
             connections,
             message_tx,
-            message_rx,
             node_id,
         })
     }
@@ -177,43 +177,58 @@ impl IrohConnectionManager {
         Ok(sent_count)
     }
     
-    /// 接收消息
-    pub async fn receive_message(&self) -> Result<(String, Vec<u8>)> {
-        // 监听传入的连接并接收消息
+    /// 接收消息（简化版本）
+    pub async fn receive_message(&self) -> Result<Option<(String, Vec<u8>)>> {
+        // 尝试接受传入连接
         if let Some(incoming) = self.endpoint.accept().await {
-            let peer = "incoming_peer".to_string(); // 暂时使用固定字符串
-            info!("📥 接收到来自 {} 的连接", peer);
-
-            // 接受连接并读取消息
             match incoming.accept() {
                 Ok(accepting) => {
                     match accepting.await {
                         Ok(connection) => {
+                            let peer_addr = "incoming_peer".to_string(); // 暂时使用固定字符串
+                            info!("🔗 接收到来自 {} 的连接", peer_addr);
+                            
+                            // 尝试从连接接收数据
                             match self.receive_from_connection(&connection).await {
-                                Ok(message) => Ok((peer, message)),
+                                Ok(data) => {
+                                    if !data.is_empty() {
+                                        info!("📨 成功接收到 {} 字节的数据", data.len());
+                                        return Ok(Some((peer_addr, data)));
+                                    }
+                                }
                                 Err(e) => {
-                                    error!("❌ 接收消息失败: {}", e);
-                                    Err(e)
+                                    warn!("⚠️ 从连接接收数据失败: {}", e);
                                 }
                             }
                         }
                         Err(e) => {
-                            error!("❌ 接受连接失败: {}", e);
-                            Err(anyhow!("接受连接失败: {}", e))
+                            warn!("⚠️ 接受连接失败: {}", e);
                         }
                     }
                 }
                 Err(e) => {
-                    error!("❌ 接受传入连接失败: {}", e);
-                    Err(anyhow!("接受传入连接失败: {}", e))
+                    warn!("⚠️ 接受传入连接失败: {}", e);
                 }
             }
-        } else {
-            // 如果没有传入连接，等待一段时间后重试
-            debug!("⏳ 等待传入连接");
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            Ok(("waiting".to_string(), vec![]))
         }
+        
+        // 检查现有连接是否有新消息
+        let connections = self.connections.lock().await;
+        for (peer_id, connection) in connections.iter() {
+            match self.receive_from_connection(connection).await {
+                Ok(data) => {
+                    if !data.is_empty() {
+                        info!("📨 从现有连接 {} 接收到 {} 字节", peer_id, data.len());
+                        return Ok(Some((peer_id.clone(), data)));
+                    }
+                }
+                Err(_) => {
+                    // 忽略接收错误，继续检查其他连接
+                }
+            }
+        }
+        
+        Ok(None)
     }
     
     /// 从连接接收消息
