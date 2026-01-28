@@ -55,7 +55,23 @@ async fn main() -> Result<()> {
     app.start().await?;
 
     info!("✅ P2P应用启动成功");
-    info!("📋 您可以将此节点ID分享给其他节点进行连接");
+    
+    // 创建iroh连接管理器以获取节点ID
+    info!("� 初始化 iroh 连接管理器...");
+    let config = IrohConnectionConfig {
+        bind_addr: "0.0.0.0:0".to_string(),
+        node_id: Some("node".to_string()),
+        bootstrap_nodes: vec![],
+        enable_relay: true,
+        max_connections: 10,
+    };
+
+    let connection_manager = IrohConnectionManager::new(config).await?;
+    let iroh_node_id = connection_manager.node_id();
+    
+    info!("🔑 iroh 节点 ID: {}", iroh_node_id);
+    info!("� 您可以将此 iroh 节点 ID 分享给其他节点进行连接");
+    info!("🔗 其他节点可以使用此 ID 连接到您的节点");
 
     // 如果指定了发送文件，则执行发送
     if let (Some(file_path), Some(peer_id)) = (args.send_file, args.peer_id) {
@@ -74,20 +90,9 @@ async fn main() -> Result<()> {
         
         info!("📊 文件大小: {} 字节", file_size);
 
-        // 创建iroh连接管理器
-        let config = IrohConnectionConfig {
-            bind_addr: "0.0.0.0:0".to_string(),
-            node_id: Some("sender".to_string()),
-            bootstrap_nodes: vec![],
-            enable_relay: true,
-            max_connections: 10,
-        };
-
-        let connection_manager = IrohConnectionManager::new(config).await?;
-        
         info!("🔗 尝试连接到目标节点...");
         
-        // 连接到目标节点
+        // 使用已创建的连接管理器连接到目标节点
         connection_manager.connect_to_peer(&peer_id).await?;
         
         info!("✅ 已连接到目标节点");
