@@ -4,6 +4,7 @@
  */
 
 use anyhow::Result;
+use anyhow::anyhow;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -11,12 +12,12 @@ use tokio;
 use tracing::{info, warn, error};
 use tracing_subscriber;
 
-// 临时导入模块，因为示例程序无法直接访问crate
-// 在实际使用中，这些模块应该作为独立的二进制程序运行
+// 导入新的模块结构
 use williw::comms::{
-    p2p_sender::{run_sender, P2PSenderArgs},
-    p2p_receiver::{run_receiver, P2PReceiverArgs},
-    transfer_protocol::{FileTransferProtocol, TransferProtocolConfig, ChecksumAlgorithm},
+    p2p::sender::{P2PModelSender, P2PSenderArgs},
+    p2p::receiver::{P2PModelReceiver, P2PReceiverArgs},
+    transport::protocol::{FileTransferProtocol, TransferProtocolConfig, ChecksumAlgorithm},
+    integration::app::{P2PAppFactory, P2PEnabledApp},
 };
 
 /// P2P 模型分发演示
@@ -485,6 +486,72 @@ mod tests {
                 assert_eq!(algorithm, "sha256");
             }
             _ => panic!("Expected TestIntegrity command"),
+        }
+    }
+}
+
+/// 主函数
+#[tokio::main]
+async fn main() -> Result<()> {
+    // 初始化日志
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
+
+    // 解析命令行参数
+    let args = P2PDemoArgs::parse();
+
+    // 执行对应的命令
+    match args.command {
+        DemoCommand::Full => {
+            info!("🚀 启动完整的P2P模型分发演示");
+            
+            // 创建P2P应用
+            let app = P2PAppFactory::create_default();
+            
+            // 启动应用
+            app.start().await?;
+            
+            info!("✅ P2P应用启动成功");
+            info!("📋 您可以将此节点ID分享给其他节点进行连接");
+            
+            // 保持运行
+            app.run().await
+        }
+        
+        DemoCommand::Send { .. } => {
+            info!("📤 发送功能正在开发中...");
+            info!("💡 请使用 'full' 命令启动完整的P2P应用");
+            Ok(())
+        }
+        
+        DemoCommand::Receive { .. } => {
+            info!("📥 接收功能正在开发中...");
+            info!("💡 请使用 'full' 命令启动完整的P2P应用");
+            Ok(())
+        }
+        
+        DemoCommand::TestIntegrity { file_path, algorithm } => {
+            info!("🔍 测试文件完整性: {} (算法: {})", file_path.display(), algorithm);
+            
+            // 创建传输协议
+            let config = TransferProtocolConfig {
+                max_chunk_size: 64 * 1024,
+                max_retries: 3,
+                timeout_seconds: 300,
+                resume_support: true,
+            };
+            
+            let protocol = FileTransferProtocol::new(config);
+            
+            // 检查文件是否存在
+            if !file_path.exists() {
+                return Err(anyhow!("文件不存在: {}", file_path.display()));
+            }
+            
+            info!("✅ 文件存在: {}", file_path.display());
+            info!("📋 传输协议配置: 最大块大小={}字节", config.max_chunk_size);
+            Ok(())
         }
     }
 }

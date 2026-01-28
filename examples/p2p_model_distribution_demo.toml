@@ -1,3 +1,0 @@
-[[example]]
-name = "p2p_model_distribution_demo"
-path = "examples/p2p_model_distribution_demo.rs"

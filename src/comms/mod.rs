@@ -23,7 +23,12 @@ pub use p2p::{P2PModelDistributor, TransferEvent, EventManager, get_global_event
 pub use transport::{IrohConnectionManager, IrohConnectionConfig, ConnectionStats, WrappedMessage};
 pub use monitoring::MonitoringDashboard;
 pub use frontend::{P2PFrontendManager, P2PFrontendStarter};
-pub use integration::P2PAppIntegration;
+pub use integration::{P2PAppIntegration, P2PAppFactory, P2PEnabledApp};
+
+// 导出P2P发送端和接收端
+pub use p2p::sender::{P2PModelSender, P2PSenderArgs};
+pub use p2p::receiver::{P2PModelReceiver, P2PReceiverArgs};
+pub use transport::protocol::{FileTransferProtocol, TransferProtocolConfig, ChecksumAlgorithm};
 
 // 为了向后兼容，导出旧模块名
 pub use p2p::distributor as p2p_distributor;

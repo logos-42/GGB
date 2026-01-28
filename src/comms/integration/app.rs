@@ -84,10 +84,10 @@ impl P2PEnabledApp {
     
     /// 初始化日志系统
     async fn init_logging(&self) -> Result<()> {
-        // 简化的日志初始化
-        tracing_subscriber::fmt()
+        // 尝试初始化日志系统，如果已经初始化则跳过
+        let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::INFO)
-            .init();
+            .try_init();
 
         info!("📝 日志系统已初始化");
         Ok(())

@@ -4,20 +4,17 @@
  */
 
 use anyhow::{anyhow, Result};
-use iroh::{Endpoint, endpoint::Connection};
+use iroh::{Endpoint, endpoint::Connection, EndpointAddr, PublicKey};
+use iroh::endpoint_info::EndpointIdExt;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{info, warn, error, debug};
 use serde::{Serialize, Deserialize};
 
 // 兼容原有的Gossip功能
 use crate::consensus::SignedGossip;
-
-// 临时类型别名，直到iroh API稳定
-type NodeId = String;
 
 /// Iroh连接配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,7 +50,7 @@ pub struct IrohConnectionManager {
     connections: Arc<Mutex<HashMap<String, Connection>>>,
     message_tx: mpsc::Sender<(String, Vec<u8>)>,
     message_rx: mpsc::Receiver<(String, Vec<u8>)>,
-    node_id: NodeId,
+    node_id: String,
 }
 
 impl IrohConnectionManager {
@@ -64,10 +61,15 @@ impl IrohConnectionManager {
         // 创建iroh端点 - 使用正确的API
         let endpoint = Endpoint::builder()
             .bind_addr_v4("0.0.0.0:0".parse().unwrap())
+            .alpns(vec![b"williw-p2p".to_vec()])  // 设置ALPN协议
             .bind()
             .await?;
-            
-        let node_id = format!("{:?}", endpoint.id());
+        
+        // 创建数据目录 - 使用统一目录
+        let data_dir = std::path::PathBuf::from("./williw_p2p_data");
+        std::fs::create_dir_all(&data_dir)?;
+        
+        let node_id = endpoint.id().to_z32();
         info!("✅ iroh 端点已创建，节点ID: {}", node_id);
         
         let (message_tx, message_rx) = mpsc::channel::<(String, Vec<u8>)>(1000);
@@ -87,16 +89,38 @@ impl IrohConnectionManager {
     pub async fn connect_to_peer(&self, peer_addr: &str) -> Result<()> {
         info!("🔗 连接到远程节点: {}", peer_addr);
         
-        // 简化的连接实现
-        // 实际实现需要根据iroh API调整
-        debug!("模拟连接到节点: {}", peer_addr);
-        
-        // 创建一个模拟连接
-        // 实际的iroh连接需要正确的API调用
-        Ok::<(), anyhow::Error>(())?;
-        
-        info!("✅ 已连接到节点: {}", peer_addr);
-        Ok(())
+        // 实现真实的iroh连接 - 使用正确的API
+        // 尝试从z-base-32格式解析PublicKey
+        let public_key = match PublicKey::from_z32(peer_addr) {
+            Ok(key) => key,
+            Err(e) => {
+                // 如果z-base-32解析失败，尝试标准FromStr
+                match peer_addr.parse::<PublicKey>() {
+                    Ok(key) => key,
+                    Err(_) => {
+                        return Err(anyhow!("无效的节点ID格式: {} (z-base-32或base32解析都失败)", peer_addr));
+                    }
+                }
+            }
+        };
+            
+        let endpoint_addr: EndpointAddr = EndpointAddr::from(public_key);
+            
+        // 使用iroh 0.95的正确connect API
+        // 需要提供EndpointAddr和ALPN协议
+        match self.endpoint.connect(endpoint_addr, b"williw-p2p").await {
+            Ok(connection) => {
+                // 存储连接
+                let mut connections = self.connections.lock().await;
+                connections.insert(peer_addr.to_string(), connection);
+                info!("✅ 已连接到节点: {}", peer_addr);
+                Ok(())
+            }
+            Err(e) => {
+                error!("连接失败: {}", e);
+                Err(anyhow!("无法连接到节点 {}: {}", peer_addr, e))
+            }
+        }
     }
     
     /// 发送消息到指定节点
@@ -216,7 +240,7 @@ impl IrohConnectionManager {
     }
     
     /// 获取节点ID
-    pub fn node_id(&self) -> NodeId {
+    pub fn node_id(&self) -> String {
         self.node_id.clone()
     }
     

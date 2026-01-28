@@ -6,4 +6,4 @@
 pub mod app;
 
 // 重新导出常用类型
-pub use app::{P2PAppFactory, P2PAppIntegration};
+pub use app::{P2PAppFactory, P2PAppIntegration, P2PEnabledApp};
