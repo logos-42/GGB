@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1", default-features = false, features = ["rt", "time", "sync"] }
-iroh = "0.95"
+iroh = { version = "0.95", features = ["discovery-local-network"] }
 
 async-trait = { version = "0.1", optional = true }
 lazy_static = { version = "1.4", optional = true }
