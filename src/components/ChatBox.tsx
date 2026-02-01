@@ -11,10 +11,13 @@ import {
   ListItemText,
   useTheme,
   alpha,
+  CircularProgress,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
+import { useModelStore } from '../store/modelStore';
+import { runInference, InferenceRequest } from '../services/inferenceService';
 
 interface ChatMessage {
   id: string;
@@ -28,14 +31,13 @@ interface ChatBoxProps {
   onExpand?: () => void;
 }
 
-// 常量配置
-const AI_REPLY_DELAY = 1000; // AI回复延迟（毫秒）
-
 export const ChatBox: React.FC<ChatBoxProps> = ({ expanded = false, onExpand }) => {
   const theme = useTheme();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
+  const [isAiThinking, setIsAiThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { inferenceResult, isInferenceLoading } = useModelStore();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -45,8 +47,34 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ expanded = false, onExpand }) 
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (!inputText.trim()) return;
+  // 监听推理结果，自动添加到聊天框（仅用于ModelSelector的初始推理）
+  useEffect(() => {
+    if (inferenceResult && !isInferenceLoading && messages.length === 0) {
+      const assistantMessage: ChatMessage = {
+        id: `inference-${Date.now()}`,
+        content: `模型已准备就绪！\n\n请求ID: ${inferenceResult.request_id || 'N/A'}\n分配节点数: ${inferenceResult.selected_nodes?.length || 0}\n预计总时间: ${inferenceResult.estimated_total_time || 0}ms\n\n${inferenceResult.result || '模型已加载，可以开始对话了！'}`,
+        sender: 'assistant',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+    }
+  }, [inferenceResult, isInferenceLoading, messages.length]);
+
+  // 监听推理开始，显示加载消息（仅用于ModelSelector的初始推理）
+  useEffect(() => {
+    if (isInferenceLoading && messages.length === 0) {
+      const loadingMessage: ChatMessage = {
+        id: `loading-${Date.now()}`,
+        content: '正在加载AI模型，请稍候...',
+        sender: 'assistant',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, loadingMessage]);
+    }
+  }, [isInferenceLoading, messages.length]);
+
+  const handleSendMessage = async () => {
+    if (!inputText.trim() || isAiThinking) return;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -56,6 +84,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ expanded = false, onExpand }) 
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputText.trim();
     setInputText('');
 
     // 只在首次发送消息时展开聊天框
@@ -63,16 +92,57 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ expanded = false, onExpand }) 
       onExpand?.();
     }
 
-    // 模拟AI回复
-    setTimeout(() => {
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        content: '这是一个模拟回复。在实际应用中，我将连接AI模型来提供智能回答。',
-        sender: 'assistant',
-        timestamp: new Date(),
+    // 显示AI思考状态
+    setIsAiThinking(true);
+    
+    // 添加思考中的消息
+    const thinkingMessage: ChatMessage = {
+      id: `thinking-${Date.now()}`,
+      content: 'AI正在思考...',
+      sender: 'assistant',
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, thinkingMessage]);
+
+    try {
+      // 检查GPU服务器是否运行，如果没有则自动启动
+      const modelPath = 'D:\\AI\\去中心化训练\\test_models\\models--LiquidAI--LFM2.5-1.2B-Thinking\\snapshots\\1c9725ba97f047b37bcf53e44e9133ccf1f79333';
+      
+      const inferenceRequest: InferenceRequest = {
+        model_path: modelPath,
+        input_text: currentInput,
+        max_length: 150
       };
-      setMessages(prev => [...prev, assistantMessage]);
-    }, AI_REPLY_DELAY);
+
+      const result = await runInference(inferenceRequest);
+
+      // 移除思考中的消息并添加AI回复
+      setMessages(prev => {
+        const filtered = prev.filter(msg => msg.id !== thinkingMessage.id);
+        return [...filtered, {
+          id: `ai-${Date.now()}`,
+          content: result.result || '抱歉，我无法生成回复。',
+          sender: 'assistant',
+          timestamp: new Date(),
+        }];
+      });
+
+    } catch (error: any) {
+      console.error('AI推理失败:', error);
+      
+      // 移除思考中的消息并添加错误消息
+      setMessages(prev => {
+        const filtered = prev.filter(msg => msg.id !== thinkingMessage.id);
+        return [...filtered, {
+          id: `error-${Date.now()}`,
+          content: `抱歉，出现了错误：${error.message || '未知错误'}。请确保GPU服务器正在运行。`,
+          sender: 'assistant',
+          timestamp: new Date(),
+        }];
+      });
+    } finally {
+      setIsAiThinking(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -195,12 +265,13 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ expanded = false, onExpand }) 
             <TextField
               fullWidth
               size="small"
-              placeholder="输入消息..."
+              placeholder={isAiThinking ? "AI正在思考..." : "输入消息..."}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyPress={handleKeyPress}
               multiline
               maxRows={2}
+              disabled={isAiThinking}
               sx={{
                 '& .MuiOutlinedInput-root': {
                   fontSize: '0.875rem',
@@ -213,17 +284,17 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ expanded = false, onExpand }) 
             <IconButton
               size="small"
               onClick={handleSendMessage}
-              disabled={!inputText.trim()}
+              disabled={!inputText.trim() || isAiThinking}
               sx={{
-                background: inputText.trim()
+                background: (inputText.trim() && !isAiThinking)
                   ? alpha(theme.palette.primary.main, 0.2)
                   : 'transparent',
-                color: inputText.trim()
+                color: (inputText.trim() && !isAiThinking)
                   ? theme.palette.primary.main
                   : theme.palette.text.disabled,
               }}
             >
-              <SendIcon sx={{ fontSize: 20 }} />
+              {isAiThinking ? <CircularProgress size={20} /> : <SendIcon sx={{ fontSize: 20 }} />}
             </IconButton>
             </Box>
           </>

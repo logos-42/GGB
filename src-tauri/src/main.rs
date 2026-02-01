@@ -39,6 +39,9 @@ async fn main() {
             commands::request_inference_from_workers,
             commands::reassign_node_from_workers,
             commands::check_node_health_from_workers,
+            commands::start_gpu_server,
+            commands::check_gpu_server_status,
+            commands::install_gpu_dependencies,
         ])
         .setup(|app| {
             // Initialize event handlers

@@ -11,7 +11,7 @@
   },
   "app": {
     "security": {
-      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost http://localhost:8000"
     },
     "windows": [
       {
@@ -25,7 +25,8 @@
         "hiddenTitle": false,
         "titleBarStyle": "Visible"
       }
-    ]
+    ],
+    "withGlobalTauri": false
   },
   "bundle": {
     "active": true,

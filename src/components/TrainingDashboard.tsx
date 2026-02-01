@@ -78,82 +78,91 @@ export const TrainingDashboard: React.FC = () => {
   const [connectedPeers, setConnectedPeers] = useState<any[]>([]);
 
   useEffect(() => {
-    loadStatus();
-    loadDeviceInfo();
+    const loadTrainingStatus = async () => {
+      try {
+        const status = await invoke<TrainingStatus>('get_training_stats');
+        setTrainingStatus(status);
+      } catch (error) {
+        console.error('Error loading training status:', error);
+      }
+    };
+
+    const loadNodeInfo = async () => {
+      try {
+        const info = await invoke<any>('get_node_info');
+        setNodeInfo(info);
+      } catch (error) {
+        console.error('Error loading node info:', error);
+        setNodeInfo(null);
+      }
+    };
+
+    const loadConnectedPeers = async () => {
+      try {
+        const peers = await invoke<any>('get_connected_peers');
+        setConnectedPeers(peers);
+      } catch (error) {
+        console.error('Error loading connected peers:', error);
+        setConnectedPeers([]);
+      }
+    };
+
+    const loadDeviceInfo = async () => {
+      try {
+        const info = await invoke<DeviceInfo>('get_device_info');
+        setDeviceInfo(info);
+      } catch (error) {
+        console.error('Error loading device info:', error);
+        setDeviceInfo(null);
+      }
+    };
+
+    // Load initial data
+    loadTrainingStatus();
     loadNodeInfo();
     loadConnectedPeers();
+    loadDeviceInfo();
 
-    // Poll for training status every second
     const statusInterval = setInterval(() => {
-      loadStatus();
-    }, 1000);
-
-    // Poll for node info every 5 seconds
-    const nodeInterval = setInterval(() => {
-      loadNodeInfo();
+      loadTrainingStatus();
     }, 5000);
 
-    // Poll for connected peers every minute
+    const nodeInterval = setInterval(() => {
+      loadNodeInfo();
+    }, 10000);
+
     const peersInterval = setInterval(() => {
       loadConnectedPeers();
     }, 60000);
 
-    // Poll for device info every minute
     const deviceInterval = setInterval(() => {
       loadDeviceInfo();
     }, 60000);
 
-    // Listen for backend device info refresh events
-    const unlisten = listen('device_info_refresh', () => {
-      loadDeviceInfo();
-    });
+    let unlistenFn: any = null;
+    
+    const setupEventListener = async () => {
+      try {
+        unlistenFn = await listen('device_info_refresh', () => {
+          loadDeviceInfo();
+        });
+      } catch (error) {
+        console.warn('Event listener setup failed, using polling only:', error);
+      }
+    };
+
+    setupEventListener();
 
     return () => {
       clearInterval(statusInterval);
       clearInterval(nodeInterval);
       clearInterval(peersInterval);
       clearInterval(deviceInterval);
-      unlisten.then(fn => fn());
+      if (unlistenFn) {
+        unlistenFn();
+      }
     };
   }, []);
-
-  const loadNodeInfo = async () => {
-    try {
-      const info = await invoke<any>('get_node_info');
-      setNodeInfo(info);
-    } catch (error) {
-      console.error('Error loading node info:', error);
-      setNodeInfo(null);
-    }
-  };
-
-  const loadConnectedPeers = async () => {
-    try {
-      const peers = await invoke<any[]>('get_connected_peers');
-      setConnectedPeers(peers);
-    } catch (error) {
-      console.error('Error loading connected peers:', error);
-      setConnectedPeers([]);
-    }
-  };
-
-  const loadStatus = async () => {
-    try {
-      const status = await invoke<TrainingStatus>('get_training_stats');
-      setTrainingStatus(status);
-    } catch (error) {
-      console.error('Error loading training status:', error);
-    }
-  };
-
-  const loadDeviceInfo = async () => {
-    try {
-      const info = await invoke<DeviceInfo>('get_device_info');
-      setDeviceInfo(info);
-    } catch (error) {
-      console.error('Error loading device info:', error);
-    }
-  };
 
   return (
     <Grid container spacing={2}>

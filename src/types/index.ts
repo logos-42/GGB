@@ -8,6 +8,7 @@ export interface ModelConfig {
   batch_size: number;
   type?: string;
   size?: string;
+  path?: string;
 }
 
 /// Training status from backend
