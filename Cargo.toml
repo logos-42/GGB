@@ -39,7 +39,7 @@ model-splitter = { path = "src/rust_modules/model_splitter" }
 # HTTP client for model operations
 reqwest = { version = "0.13.1", features = ["json"] }
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 log = "0.4"
